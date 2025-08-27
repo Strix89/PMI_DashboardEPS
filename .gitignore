@@ -1,0 +1,45 @@
+# Python Environment
+env/
+venv/
+__pycache__/
+src/discovery/__pycache__/
+src/scanners/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+logs/*
+output/*
+
+# Application Generated Files
+logs/
+output/
+*.log
+
+# Temporary Files
+temp/
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

@@ -1,0 +1,35 @@
+# PMI Dashboard EPS - Discovery Engine Requirements
+# Compatibile con Python 3.13+ e dipendenze stabili
+
+# === CORE NETWORKING === 
+python-nmap>=0.7.1          # NMAP integration for port scanning
+pysnmp>=4.4.12              # SNMP v1/v2c support (versione stabile)
+pyasn1>=0.4.8               # ASN.1 support for SNMP
+
+# === NETWORK UTILITIES ===
+psutil>=5.8.0               # System utilities for ARP table access
+netaddr>=0.8.0              # IP address manipulation and CIDR
+ipaddress                   # Python standard library (no version needed)
+
+# === DATA PROCESSING ===
+PyYAML>=6.0                 # YAML configuration files
+requests>=2.25.0            # HTTP requests
+jsonschema>=3.2.0           # JSON validation
+
+# === CLI AND UI ===
+colorama>=0.4.4             # Cross-platform colored terminal
+click>=8.0.0                # Command-line interface
+tabulate>=0.8.9             # Pretty-print tables
+
+# === OPTIONAL DEVELOPMENT ===
+# Uncomment if needed for development:
+# pytest>=7.0.0
+# black>=22.0.0
+# flake8>=4.0.0
+
+# Data visualization (optional for reporting)
+matplotlib==3.8.1          # Plotting and visualization
+plotly==5.17.0             # Interactive plots for web dashboards
+
+# Logging enhancements
+structlog==23.2.0          # Structured logging
