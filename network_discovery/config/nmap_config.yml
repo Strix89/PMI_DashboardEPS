@@ -1,0 +1,28 @@
+# NMAP Scanner Configuration
+# Configuration for NMAP-based port scanning and OS detection
+
+nmap:
+  # TCP SYN scan type
+  scan_type: "-sS"
+  
+  # Port range to scan (-F for fast scan of top 100 ports)
+  port_range: "-F"
+  
+  # Timing template (T0-T5, T4 is aggressive)
+  timing: "-T4"
+  
+  # OS detection flag
+  os_detection: "-O"
+  
+  # Service version detection flag
+  service_detection: "-sV"
+  
+  # Additional NMAP flags and scripts (removed problematic scripts for Windows stability)
+  additional_flags:
+    - "--script=banner"
+  
+  # Timeout for NMAP scan in seconds
+  timeout: 300
+  
+  # Maximum number of parallel hosts to scan
+  max_parallel: 50

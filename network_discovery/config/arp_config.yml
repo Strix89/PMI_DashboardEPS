@@ -1,0 +1,18 @@
+# ARP Scanner Configuration
+# Configuration for ARP-based device discovery
+
+arp:
+  # Timeout for ARP requests in seconds
+  timeout: 2
+  
+  # Number of retries for failed ARP requests
+  retries: 3
+  
+  # Network interface to use (null for auto-detection)
+  interface: null
+  
+  # ARP scanning method: "arping", "scapy", or "ping"
+  method: "scapy"
+  
+  # Number of parallel threads for scanning
+  parallel_threads: 10

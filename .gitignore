@@ -4,6 +4,11 @@ venv/
 __pycache__/
 src/discovery/__pycache__/
 src/scanners/__pycache__/
+network_discovery/__pycache__/
+network_discovery/config/__pycache__/
+network_discovery/core/__pycache__/
+network_discovery/scanners/__pycache__/
+network_discovery/utils/__pycache__/
 *.pyc
 *.pyo
 *.pyd
@@ -25,6 +30,7 @@ wheels/
 *.egg
 logs/*
 output/*
+.kiro/
 
 # Application Generated Files
 logs/

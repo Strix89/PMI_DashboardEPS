@@ -1,0 +1,140 @@
+{
+  "scan_metadata": {
+    "timestamp": "2025-08-28T21:16:44.018302Z",
+    "scan_duration": 79.091888,
+    "network_scanned": "192.168.1.0/24",
+    "host_ip": "192.168.1.5",
+    "excluded_addresses": [
+      "192.168.1.0",
+      "192.168.1.5",
+      "192.168.1.255"
+    ],
+    "configurations_used": {
+      "arp": {
+        "timeout": 2,
+        "retries": 3,
+        "interface": null,
+        "method": "scapy",
+        "parallel_threads": 10
+      },
+      "nmap": {
+        "scan_type": "-sS",
+        "port_range": "-F",
+        "timing": "-T4",
+        "os_detection": "-O",
+        "service_detection": "-sV",
+        "additional_flags": [
+          "--script=banner"
+        ],
+        "timeout": 300,
+        "max_parallel": 50
+      },
+      "snmp": {
+        "versions": [
+          1,
+          2
+        ],
+        "communities": [
+          "public",
+          "private",
+          "admin"
+        ],
+        "timeout": 5,
+        "retries": 2,
+        "max_oids_per_request": 10,
+        "walk_oids": [
+          "1.3.6.1.2.1.1",
+          "1.3.6.1.2.1.2",
+          "1.3.6.1.2.1.4"
+        ]
+      }
+    },
+    "scan_status": "completed"
+  },
+  "network_info": {
+    "host_ip": "192.168.1.5",
+    "netmask": "24",
+    "network_address": "192.168.1.0",
+    "broadcast_address": "192.168.1.255",
+    "interface_name": "Descrizione . . . . . . . . . . . . . : Microsoft Wi-Fi Direct Virtual Adapter #4",
+    "scan_range_size": 253
+  },
+  "scan_statistics": {
+    "total_addresses_scanned": 253,
+    "devices_found": {
+      "arp": 0,
+      "nmap": 3,
+      "snmp": 0,
+      "total": 3
+    },
+    "scan_times": {
+      "arp_duration": 13.055246,
+      "nmap_duration": 65.797533,
+      "snmp_duration": 0.001279,
+      "total_duration": 79.091888
+    },
+    "errors_encountered": [
+      "192.168.1.4: No SNMP response from 192.168.1.4 (tried versions [1, 2] with communities ['public', 'private', 'admin'])",
+      "192.168.1.10: No SNMP response from 192.168.1.10 (tried versions [1, 2] with communities ['public', 'private', 'admin'])",
+      "192.168.1.1: No SNMP response from 192.168.1.1 (tried versions [1, 2] with communities ['public', 'private', 'admin'])"
+    ]
+  },
+  "devices": [
+    {
+      "ip_address": "192.168.1.1",
+      "mac_address": null,
+      "hostname": "AGGPON_2024.homenet.telecomitalia.it",
+      "device_type": "IoT",
+      "os_info": "OpenWrt 21.02 (Linux 5.4) (accuracy: 99%)",
+      "manufacturer": null,
+      "model": null,
+      "open_ports": [
+        53,
+        80,
+        443,
+        8000,
+        8443
+      ],
+      "services": {
+        "53": "domain",
+        "80": "http",
+        "443": "https",
+        "8000": "http-alt",
+        "8443": "https-alt"
+      },
+      "snmp_data": null
+    },
+    {
+      "ip_address": "192.168.1.4",
+      "mac_address": null,
+      "hostname": "Nothing-Phone-2.homenet.telecomitalia.it",
+      "device_type": "Unknown",
+      "os_info": null,
+      "manufacturer": null,
+      "model": null,
+      "open_ports": [],
+      "services": {},
+      "snmp_data": null
+    },
+    {
+      "ip_address": "192.168.1.10",
+      "mac_address": null,
+      "hostname": "DESKTOP-VRSC1AU.homenet.telecomitalia.it",
+      "device_type": "Windows",
+      "os_info": "Microsoft Windows 10 1803 (accuracy: 92%)",
+      "manufacturer": null,
+      "model": null,
+      "open_ports": [
+        80,
+        443,
+        3306
+      ],
+      "services": {
+        "80": "http (Apache httpd 2.4.58)",
+        "443": "http (Apache httpd 2.4.58)",
+        "3306": "mysql (MariaDB 10.3.23 or earlier)"
+      },
+      "snmp_data": null
+    }
+  ]
+}

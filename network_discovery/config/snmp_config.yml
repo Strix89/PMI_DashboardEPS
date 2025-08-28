@@ -1,0 +1,28 @@
+# SNMP Scanner Configuration
+# Configuration for SNMP-based device information gathering
+
+snmp:
+  # SNMP versions to try (1, 2, or 3)
+  versions: [2, 1]
+  
+  # Community strings to try for SNMP access
+  communities:
+    - "public"
+    - "private"
+    - "admin"
+    - "community"
+  
+  # Timeout for SNMP requests in seconds
+  timeout: 5
+  
+  # Number of retries for failed SNMP requests
+  retries: 2
+  
+  # Maximum number of OIDs to request in a single SNMP operation
+  max_oids_per_request: 10
+  
+  # OID trees to walk for device information
+  walk_oids:
+    - "1.3.6.1.2.1.1"      # System information (sysDescr, sysObjectID, etc.)
+    - "1.3.6.1.2.1.2"      # Interface information (ifTable)
+    - "1.3.6.1.2.1.4"      # IP information (ipAddrTable, ipRouteTable)
