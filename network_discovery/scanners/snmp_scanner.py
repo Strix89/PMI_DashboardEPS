@@ -5,14 +5,29 @@ This module implements SNMP-based device discovery using the pysnmp library
 to perform SNMP walks and retrieve device information from SNMP-enabled devices.
 """
 
+import asyncio
 import time
 import threading
+import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Optional, Tuple, Any
 from dataclasses import dataclass
 
 try:
-    from pysnmp.hlapi import *
+    # pysnmp 7.x - use v3arch.asyncio for async operations
+    from pysnmp.hlapi.v3arch.asyncio import (
+        SnmpEngine,
+        CommunityData,
+        UsmUserData,
+        UdpTransportTarget,
+        ContextData,
+        ObjectType,
+        ObjectIdentity,
+        walk_cmd,
+        get_cmd,
+        usmNoAuthProtocol,
+        usmNoPrivProtocol,
+    )
     from pysnmp.error import PySnmpError
 
     PYSNMP_AVAILABLE = True
@@ -23,20 +38,17 @@ except ImportError:
     class CommunityData:
         pass
 
+    class SnmpEngine:
+        pass
+
+    class UdpTransportTarget:
+        pass
+
 
 from .base_scanner import BaseScanner, ScanResult
 from ..core.data_models import DeviceInfo, ScanStatus, DeviceType
 from ..config.config_loader import SNMPConfig
 from ..utils.logger import Logger
-
-
-@dataclass
-class SNMPResponse:
-    """Container for SNMP response data."""
-
-    oid: str
-    value: str
-    value_type: str
 
 
 class SNMPScanner(BaseScanner):
@@ -48,14 +60,15 @@ class SNMPScanner(BaseScanner):
     and network configuration.
     """
 
-    def __init__(self, logger: Optional[Logger] = None):
+    def __init__(self, logger: Optional[Logger] = None, error_handler=None):
         """
         Initialize the SNMP scanner.
 
         Args:
             logger: Logger instance for outputting scan progress and errors
+            error_handler: ErrorHandler instance for centralized error management
         """
-        super().__init__(logger)
+        super().__init__(logger, error_handler)
         self.scanner_type = "SNMP"
         self._lock = threading.Lock()
 
@@ -104,15 +117,14 @@ class SNMPScanner(BaseScanner):
         scan_duration = self._end_scan_timer()
 
         # Determine scan status
+        scan_status = ScanStatus.COMPLETED
         if errors and not devices:
             scan_status = ScanStatus.FAILED
-        elif errors and devices:
+        elif errors:
             scan_status = ScanStatus.PARTIAL
-        else:
-            scan_status = ScanStatus.COMPLETED
 
         self._log_info(
-            f"SNMP scan completed. Retrieved data from {len(devices)} devices in {scan_duration:.2f} seconds"
+            f"SNMP scan completed. Found {len(devices)} devices in {scan_duration:.2f}s"
         )
 
         return ScanResult(
@@ -128,7 +140,10 @@ class SNMPScanner(BaseScanner):
                 "targets_scanned": len(valid_targets),
                 "timeout": config.timeout,
                 "retries": config.retries,
+                "max_oids_per_request": config.max_oids_per_request,
+                "max_walk_oids": config.max_walk_oids,
                 "walk_oids": config.walk_oids,
+                "specific_oids_count": len(config.specific_oids),
             },
         )
 
@@ -177,7 +192,9 @@ class SNMPScanner(BaseScanner):
                     errors.append(error_msg)
                     self._log_error(error_msg)
 
-        return devices, errors, "\n\n".join(all_raw_output)
+        # Join all raw output with proper separation between devices
+        formatted_raw_output = "\n\n".join(all_raw_output)
+        return devices, errors, formatted_raw_output
 
     def _scan_single_target(
         self, target: str, config: SNMPConfig
@@ -192,14 +209,13 @@ class SNMPScanner(BaseScanner):
         Returns:
             Tuple of (device_info, error_message, raw_output)
         """
-        self._log_debug(f"Starting SNMP scan of {target}")
-
         # Try different SNMP versions and communities
         for version in config.versions:
             for community in config.communities:
                 try:
-                    snmp_data, raw_output = self.snmp_walk(
-                        target, community, version, config
+                    # Run async SNMP walk in sync context
+                    snmp_data, raw_output = asyncio.run(
+                        self._async_snmp_walk(target, community, version, config)
                     )
 
                     if snmp_data:
@@ -210,93 +226,172 @@ class SNMPScanner(BaseScanner):
                             snmp_data=snmp_data,
                         )
 
-                        # Try to extract additional info from SNMP data
+                        # Extract additional info from SNMP data
                         self._enrich_device_info(device, snmp_data)
 
                         self._log_info(
-                            f"SNMP scan successful for {target} (v{version}, community: {community})"
+                            f"SNMP scan successful for {target} (v{version}, {len(snmp_data)} OIDs)"
                         )
                         return device, None, raw_output
 
                 except Exception as e:
                     self._log_debug(
-                        f"SNMP v{version} with community '{community}' failed for {target}: {str(e)}"
+                        f"SNMP v{version}/{community} failed for {target}: {str(e)}"
                     )
                     continue
 
         # No successful SNMP connection
-        error_msg = f"No SNMP response from {target} (tried versions {config.versions} with communities {config.communities})"
-        self._log_debug(error_msg)
+        error_msg = f"No SNMP response from {target}"
         return None, error_msg, ""
 
-    def snmp_walk(
+    async def _async_snmp_walk(
         self,
         target: str,
         community: str,
-        version: int = 2,
-        config: Optional[SNMPConfig] = None,
+        version: int,
+        config: SNMPConfig,
     ) -> Tuple[Dict[str, str], str]:
         """
-        Perform SNMP walk on a target device.
+        Perform async SNMP walk using pysnmp 7.x async API.
 
         Args:
-            target: IP address of the target device
+            target: Target IP address
             community: SNMP community string
             version: SNMP version (1, 2, or 3)
-            config: SNMP configuration (optional, uses defaults if not provided)
+            config: SNMP configuration
 
         Returns:
             Tuple of (oid_value_dict, raw_output_string)
         """
-        if not PYSNMP_AVAILABLE:
-            raise ImportError("pysnmp library not available")
-
-        if config is None:
-            config = SNMPConfig()
-
         snmp_data = {}
         raw_output_lines = []
 
-        # Configure SNMP version
+        try:
+            # Configure SNMP version and authentication
+            auth_data = self._create_auth_data(community, version)
+
+            # Create transport target using .create() method for pysnmp 7.x
+            transport_target = await UdpTransportTarget.create(
+                (target, 161), timeout=config.timeout, retries=config.retries
+            )
+
+            context_data = ContextData()
+            snmp_engine = SnmpEngine()
+            try:
+                # Walk each configured OID
+                for base_oid in config.walk_oids:
+                    try:
+                        oid_data = await self._async_walk_oid(
+                            snmp_engine,
+                            auth_data,
+                            transport_target,
+                            context_data,
+                            base_oid,
+                            config,
+                        )
+                        snmp_data |= oid_data
+
+                        # Add to raw output with proper formatting
+                        raw_output_lines.append(f"OID Walk: {base_oid}")
+                        for oid, value in oid_data.items():
+                            raw_output_lines.append(f"  {oid} = {value}")
+
+                    except Exception as e:
+                        error_msg = f"Error walking OID {base_oid}: {str(e)}"
+                        self._log_debug(error_msg)
+                        raw_output_lines.append(
+                            f"OID Walk: {base_oid} - ERROR: {error_msg}"
+                        )
+
+                # Query specific OIDs
+                if config.specific_oids:
+                    raw_output_lines.append("Specific OID Queries:")
+                    specific_data = await self._async_query_specific_oids(
+                        snmp_engine,
+                        auth_data,
+                        transport_target,
+                        context_data,
+                        config.specific_oids,
+                        config,
+                    )
+
+                    # Format output for specific OIDs
+                    for oid_info in config.specific_oids:
+                        oid = oid_info.get("oid")
+                        name = oid_info.get("name", oid)
+
+                        if oid in specific_data:
+                            value = specific_data[oid]
+                            if len(value) > 100:
+                                value = value[:97] + "..."
+                            raw_output_lines.append(f"  {name} ({oid}) = {value}")
+                        elif oid in snmp_data:
+                            specific_data[oid] = snmp_data[oid]
+                            value = snmp_data[oid]
+                            if len(value) > 100:
+                                value = value[:97] + "..."
+                            raw_output_lines.append(
+                                f"  {name} ({oid}) = {value} (from walk)"
+                            )
+
+                    snmp_data |= specific_data
+
+            finally:
+                snmp_engine.close_dispatcher()
+
+        except Exception as e:
+            error_msg = f"SNMP walk failed for {target}: {str(e)}"
+            self._log_debug(error_msg)
+            raw_output_lines.append(f"Error: {error_msg}")
+
+        # Join all output lines with proper line breaks
+        formatted_output = "\n".join(raw_output_lines)
+        return snmp_data, formatted_output
+
+    def _create_auth_data(self, community: str, version: int) -> Any:
+        """
+        Create authentication data based on SNMP version.
+
+        Args:
+            community: SNMP community string or username for v3
+            version: SNMP version (1, 2, or 3)
+
+        Returns:
+            Authentication data object
+        """
         if version == 1:
-            snmp_version = CommunityData(community, mpModel=0)
+            return CommunityData(community, mpModel=0)  # SNMPv1
         elif version == 2:
-            snmp_version = CommunityData(community, mpModel=1)
+            return CommunityData(community, mpModel=1)  # SNMPv2c
         elif version == 3:
-            # SNMPv3 requires additional authentication - simplified implementation
-            snmp_version = CommunityData(community, mpModel=1)  # Fallback to v2c
+            # SNMPv3 - simplified implementation (noAuthNoPriv)
+            return UsmUserData(
+                userName=community,
+                authKey=None,
+                privKey=None,
+                authProtocol=usmNoAuthProtocol,
+                privProtocol=usmNoPrivProtocol,
+            )
         else:
             raise ValueError(f"Unsupported SNMP version: {version}")
 
-        # Walk each configured OID
-        for base_oid in config.walk_oids:
-            try:
-                self._log_debug(f"Walking OID {base_oid} on {target}")
-
-                oid_data = self._walk_oid(target, snmp_version, base_oid, config)
-                snmp_data.update(oid_data)
-
-                # Add to raw output
-                raw_output_lines.append(f"OID Walk: {base_oid}")
-                for oid, value in oid_data.items():
-                    raw_output_lines.append(f"  {oid} = {value}")
-
-            except Exception as e:
-                error_msg = f"Error walking OID {base_oid}: {str(e)}"
-                self._log_debug(error_msg)
-                raw_output_lines.append(f"OID Walk: {base_oid} - ERROR: {error_msg}")
-
-        return snmp_data, "\n".join(raw_output_lines)
-
-    def _walk_oid(
-        self, target: str, snmp_version: Any, base_oid: str, config: SNMPConfig
+    async def _async_walk_oid(
+        self,
+        snmp_engine: SnmpEngine,
+        auth_data: Any,
+        transport_target: UdpTransportTarget,
+        context_data: ContextData,
+        base_oid: str,
+        config: SNMPConfig,
     ) -> Dict[str, str]:
         """
-        Walk a specific OID tree.
+        Walk a specific OID tree using async API.
 
         Args:
-            target: Target IP address
-            snmp_version: SNMP version configuration
+            snmp_engine: SNMP engine instance
+            auth_data: Authentication data (community or USM)
+            transport_target: UDP transport target
+            context_data: SNMP context data
             base_oid: Base OID to walk
             config: SNMP configuration
 
@@ -306,35 +401,38 @@ class SNMPScanner(BaseScanner):
         oid_data = {}
 
         try:
-            # Perform SNMP walk
-            for errorIndication, errorStatus, errorIndex, varBinds in nextCmd(
-                SnmpEngine(),
-                snmp_version,
-                UdpTransportTarget(
-                    (target, 161), timeout=config.timeout, retries=config.retries
-                ),
-                ContextData(),
+            # Create async iterator for SNMP walk
+            iterator = walk_cmd(
+                snmp_engine,
+                auth_data,
+                transport_target,
+                context_data,
                 ObjectType(ObjectIdentity(base_oid)),
-                lexicographicMode=False,
+                lookupMib=False,
+                lexicographicMode=False,  # Stop at end of subtree
                 ignoreNonIncreasingOid=True,
-                maxRows=config.max_oids_per_request,
-            ):
+            )
 
+            # Iterate through results
+            async for errorIndication, errorStatus, errorIndex, varBinds in iterator:
                 # Check for errors
                 if errorIndication:
                     self._log_debug(f"SNMP error indication: {errorIndication}")
                     break
 
                 if errorStatus:
+                    problematic = (
+                        varBinds[int(errorIndex) - 1][0] if errorIndex else "?"
+                    )
                     self._log_debug(
-                        f"SNMP error status: {errorStatus.prettyPrint()} at {errorIndex and varBinds[int(errorIndex) - 1][0] or '?'}"
+                        f"SNMP error status: {errorStatus.prettyPrint()} at {problematic}"
                     )
                     break
 
                 # Process variable bindings
-                for varBind in varBinds:
-                    oid_str = str(varBind[0])
-                    value_str = str(varBind[1])
+                for name, value in varBinds:
+                    oid_str = name.prettyPrint()
+                    value_str = value.prettyPrint()
 
                     # Stop if we've walked beyond the base OID
                     if not oid_str.startswith(base_oid):
@@ -342,17 +440,86 @@ class SNMPScanner(BaseScanner):
 
                     oid_data[oid_str] = value_str
 
-                    # Limit the number of OIDs to prevent excessive data
-                    if len(oid_data) >= 1000:  # Reasonable limit
+                    # Limit the number of OIDs to prevent excessive data (configurable)
+                    max_walk_oids = getattr(config, "max_walk_oids", 1000)
+                    if len(oid_data) >= max_walk_oids:
                         self._log_debug(
-                            f"Reached OID limit (1000) for base OID {base_oid}"
+                            f"Reached OID limit ({max_walk_oids}) for base OID {base_oid}"
                         )
-                        break
+                        return oid_data
 
         except PySnmpError as e:
             self._log_debug(f"PySnmp error walking {base_oid}: {str(e)}")
         except Exception as e:
             self._log_debug(f"Unexpected error walking {base_oid}: {str(e)}")
+
+        return oid_data
+
+    async def _async_query_specific_oids(
+        self,
+        snmp_engine: SnmpEngine,
+        auth_data: Any,
+        transport_target: UdpTransportTarget,
+        context_data: ContextData,
+        specific_oids: list,
+        config: SNMPConfig,
+    ) -> Dict[str, str]:
+        """
+        Query specific OIDs using async GET requests.
+
+        Args:
+            snmp_engine: SNMP engine instance
+            auth_data: Authentication data (community or USM)
+            transport_target: UDP transport target
+            context_data: SNMP context data
+            specific_oids: List of OID configurations to query
+            config: SNMP configuration for batching parameters
+
+        Returns:
+            Dictionary of OID-value pairs for successful queries only
+        """
+        oid_data = {}
+
+        # Process each OID individually using simple GET
+        for oid_config in specific_oids:
+            oid = oid_config.get("oid")
+            name = oid_config.get("name", oid)
+
+            if not oid:
+                self._log_debug(
+                    f"Skipping OID config without 'oid' field: {oid_config}"
+                )
+                continue
+
+            try:
+                # Use simple GET command
+                result = await asyncio.wait_for(
+                    get_cmd(
+                        snmp_engine,
+                        auth_data,
+                        transport_target,
+                        context_data,
+                        ObjectType(ObjectIdentity(oid)),
+                        lookupMib=False,
+                    ),
+                    timeout=5.0,
+                )
+
+                errorIndication, errorStatus, errorIndex, varBinds = result
+
+                if errorIndication or errorStatus:
+                    continue
+
+                # Process successful response
+                for var_name, var_value in varBinds:
+                    oid_str = var_name.prettyPrint()
+                    value_str = var_value.prettyPrint()
+
+                    if value_str and not value_str.startswith("No Such"):
+                        oid_data[oid_str] = value_str
+
+            except (asyncio.TimeoutError, Exception):
+                continue
 
         return oid_data
 
@@ -366,62 +533,15 @@ class SNMPScanner(BaseScanner):
             device: DeviceInfo object to enrich
             snmp_data: SNMP OID-value pairs
         """
-        # Common SNMP OIDs for device information
-        system_oids = {
-            "1.3.6.1.2.1.1.1.0": "sysDescr",  # System description
-            "1.3.6.1.2.1.1.5.0": "sysName",  # System name
-            "1.3.6.1.2.1.1.4.0": "sysContact",  # System contact
-            "1.3.6.1.2.1.1.6.0": "sysLocation",  # System location
-        }
-
         # Extract system description for OS info
         for oid, value in snmp_data.items():
             if oid == "1.3.6.1.2.1.1.1.0":  # sysDescr
                 device.os_info = value
-                # Try to extract manufacturer from system description
-                self._extract_manufacturer_from_sysdescr(device, value)
             elif oid == "1.3.6.1.2.1.1.5.0":  # sysName
                 device.hostname = value
 
-        # Note: Device classification will be done by DeviceClassifier in orchestrator
-        # Just extract manufacturer info here
+        # Extract manufacturer info
         device.manufacturer = self._extract_manufacturer_from_snmp(snmp_data)
-
-    def _extract_manufacturer_from_sysdescr(
-        self, device: DeviceInfo, sys_descr: str
-    ) -> None:
-        """
-        Extract manufacturer information from system description.
-
-        Args:
-            device: DeviceInfo object to update
-            sys_descr: System description string
-        """
-        # Common manufacturer patterns in system descriptions
-        manufacturers = {
-            "cisco": ["Cisco", "IOS"],
-            "hp": ["HP", "Hewlett", "Packard"],
-            "dell": ["Dell"],
-            "juniper": ["Juniper", "JUNOS"],
-            "netgear": ["NETGEAR", "Netgear"],
-            "linksys": ["Linksys"],
-            "dlink": ["D-Link", "DLink"],
-            "tplink": ["TP-Link", "TP-LINK"],
-            "ubiquiti": ["Ubiquiti", "UniFi"],
-            "mikrotik": ["MikroTik", "RouterOS"],
-            "fortinet": ["Fortinet", "FortiGate"],
-            "paloalto": ["Palo Alto", "PAN-OS"],
-            "aruba": ["Aruba"],
-            "extreme": ["Extreme", "ExtremeXOS"],
-        }
-
-        sys_descr_lower = sys_descr.lower()
-
-        for manufacturer, patterns in manufacturers.items():
-            for pattern in patterns:
-                if pattern.lower() in sys_descr_lower:
-                    device.manufacturer = manufacturer.title()
-                    return
 
     def _extract_manufacturer_from_snmp(
         self, snmp_data: Dict[str, str]
@@ -436,9 +556,7 @@ class SNMPScanner(BaseScanner):
             Manufacturer name or None
         """
         # Get system description (most informative OID)
-        sys_descr = snmp_data.get("1.3.6.1.2.1.1.1.0", "")
-
-        if sys_descr:
+        if sys_descr := snmp_data.get("1.3.6.1.2.1.1.1.0", ""):
             # Common manufacturer patterns in system descriptions
             manufacturers = {
                 "cisco": ["Cisco", "IOS"],

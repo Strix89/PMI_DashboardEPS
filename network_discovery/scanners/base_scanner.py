@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from ..core.data_models import DeviceInfo, ScanStatus
+from ..utils.error_handler import ErrorHandler, ErrorContext, ErrorType, ErrorSeverity
 
 
 @dataclass
@@ -51,14 +52,16 @@ class BaseScanner(ABC):
     usage in the scanner orchestrator.
     """
     
-    def __init__(self, logger=None):
+    def __init__(self, logger=None, error_handler=None):
         """
         Initialize the base scanner.
         
         Args:
             logger: Logger instance for outputting scan progress and errors
+            error_handler: ErrorHandler instance for centralized error management
         """
         self.logger = logger
+        self.error_handler = error_handler or ErrorHandler(logger)
         self.scan_start_time: Optional[datetime] = None
         self.scan_end_time: Optional[datetime] = None
     
@@ -149,15 +152,33 @@ class BaseScanner(ABC):
             List of valid targets after filtering
         """
         if not targets:
-            self._log_warning("No targets provided for scanning")
+            context = ErrorContext(
+                error_type=ErrorType.VALIDATION_ERROR,
+                severity=ErrorSeverity.MEDIUM,
+                operation="validate_targets",
+                component=self.__class__.__name__
+            )
+            from ..utils.error_handler import ValidationError
+            error = ValidationError("No targets provided for scanning")
+            self.error_handler.handle_error(error, context)
             return []
         
         valid_targets = []
         for target in targets:
-            if self._is_valid_target(target):
-                valid_targets.append(target)
-            else:
-                self._log_warning(f"Invalid target skipped: {target}")
+            try:
+                if self._is_valid_target(target):
+                    valid_targets.append(target)
+                else:
+                    self._log_warning(f"Invalid target skipped: {target}")
+            except Exception as e:
+                context = ErrorContext(
+                    error_type=ErrorType.VALIDATION_ERROR,
+                    severity=ErrorSeverity.LOW,
+                    operation="validate_target",
+                    component=self.__class__.__name__,
+                    additional_info={"target": target}
+                )
+                self.error_handler.handle_error(e, context)
         
         self._log_info(f"Validated {len(valid_targets)} out of {len(targets)} targets")
         return valid_targets

@@ -1,18 +1,66 @@
 # ARP Scanner Configuration
 # Configuration for ARP-based device discovery
+#
+# ARP (Address Resolution Protocol) scanning is used to discover active devices
+# on the local network by sending ARP requests and analyzing responses.
+# This is typically the fastest method for device discovery on local networks.
 
 arp:
   # Timeout for ARP requests in seconds
+  # Lower values = faster scans but may miss slow devices
+  # Higher values = more reliable but slower scans
+  # Recommended: 1-5 seconds depending on network conditions
   timeout: 2
   
   # Number of retries for failed ARP requests
+  # Increase for unreliable networks or slow devices
+  # Decrease for faster scans on reliable networks
+  # Recommended: 1-5 retries
   retries: 3
   
-  # Network interface to use (null for auto-detection)
+  # Network interface to use for ARP scanning
+  # null = auto-detect the default network interface
+  # Specify interface name (e.g., "eth0", "wlan0") to use specific interface
+  # Use 'ip addr' or 'ifconfig' to list available interfaces
   interface: null
   
-  # ARP scanning method: "arping", "scapy", or "ping"
+  # ARP scanning method to use
+  # "arping" = Use external arping command (requires arping tool installed)
+  #            - Generally faster and more reliable
+  #            - Requires elevated privileges on most systems
+  #            - May not work on Windows without WSL
+  # "scapy" = Use Python scapy library (pure Python implementation)
+  #           - Works on all platforms
+  #           - No external dependencies
+  #           - May be slightly slower than arping
+  # "ping" = Use ICMP ping as fallback (not true ARP)
+  #          - Most compatible but less accurate
+  #          - Some devices don't respond to ping
   method: "scapy"
   
   # Number of parallel threads for scanning
+  # Higher values = faster scanning but more network load
+  # Lower values = gentler on network but slower
+  # Recommended ranges:
+  #   - Small networks (/28, /27): 5-15 threads
+  #   - Medium networks (/24, /23): 10-30 threads  
+  #   - Large networks (/22 and larger): 20-50 threads
+  # Note: Too many threads may overwhelm network equipment
   parallel_threads: 10
+
+# Performance Tuning Examples:
+#
+# Fast scan (may miss some devices):
+# timeout: 1
+# retries: 1
+# parallel_threads: 20
+#
+# Reliable scan (slower but thorough):
+# timeout: 5
+# retries: 5
+# parallel_threads: 5
+#
+# Network-friendly scan (minimal impact):
+# timeout: 3
+# retries: 2
+# parallel_threads: 3

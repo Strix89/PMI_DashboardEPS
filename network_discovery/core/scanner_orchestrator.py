@@ -29,6 +29,7 @@ from ..scanners.base_scanner import ScanResult
 from ..config.config_loader import ConfigLoader, ARPConfig, NMAPConfig, SNMPConfig
 from ..utils.logger import Logger, get_logger
 from ..utils.json_reporter import JSONReporter
+from ..utils.error_handler import ErrorHandler, ErrorContext, ErrorType, ErrorSeverity, NetworkError
 
 
 class ScannerOrchestrator:
@@ -46,6 +47,7 @@ class ScannerOrchestrator:
         config_dir: Optional[str] = None,
         output_dir: Optional[str] = None,
         skip_arp: bool = False,
+        error_handler: Optional[ErrorHandler] = None,
     ):
         """
         Initialize the scanner orchestrator.
@@ -54,8 +56,10 @@ class ScannerOrchestrator:
             config_dir: Directory containing configuration files (optional)
             output_dir: Directory for output files (optional)
             skip_arp: Skip ARP scan phase (optional)
+            error_handler: ErrorHandler instance for centralized error management (optional)
         """
         self.logger = get_logger(__name__)
+        self.error_handler = error_handler or ErrorHandler(self.logger)
 
         # Initialize components
         self.network_detector = NetworkDetector()
@@ -63,10 +67,10 @@ class ScannerOrchestrator:
         self.config_loader = ConfigLoader(config_dir)
         self.json_reporter = JSONReporter(output_dir or "network_discovery/results")
 
-        # Initialize scanners
-        self.arp_scanner = ARPScanner(self.logger)
-        self.nmap_scanner = NMAPScanner(self.logger)
-        self.snmp_scanner = SNMPScanner(self.logger)
+        # Initialize scanners with error handler
+        self.arp_scanner = ARPScanner(self.logger, self.error_handler)
+        self.nmap_scanner = NMAPScanner(self.logger, self.error_handler)
+        self.snmp_scanner = SNMPScanner(self.logger, self.error_handler)
 
         # Skip flags
         self.skip_arp = skip_arp
@@ -142,6 +146,14 @@ class ScannerOrchestrator:
             return scan_result
 
         except Exception as e:
+            context = ErrorContext(
+                error_type=ErrorType.NETWORK_ERROR,
+                severity=ErrorSeverity.CRITICAL,
+                operation="execute_full_scan",
+                component="ScannerOrchestrator"
+            )
+            self.error_handler.handle_error(e, context)
+            
             self.logger.error(f"Scan pipeline failed: {str(e)}", exception=e)
             # Create a failed scan result for partial data
             return self._create_failed_scan_result(str(e))
@@ -170,6 +182,15 @@ class ScannerOrchestrator:
 
         except Exception as e:
             self.logger.progress_end()
+            
+            context = ErrorContext(
+                error_type=ErrorType.NETWORK_ERROR,
+                severity=ErrorSeverity.CRITICAL,
+                operation="detect_network_configuration",
+                component="ScannerOrchestrator"
+            )
+            self.error_handler.handle_error(e, context)
+            
             self.logger.error(f"Network detection failed: {str(e)}", exception=e)
             raise RuntimeError(
                 f"Cannot proceed without network configuration: {str(e)}"
@@ -199,6 +220,15 @@ class ScannerOrchestrator:
 
         except Exception as e:
             self.logger.progress_end()
+            
+            context = ErrorContext(
+                error_type=ErrorType.CONFIGURATION_ERROR,
+                severity=ErrorSeverity.CRITICAL,
+                operation="load_configurations",
+                component="ScannerOrchestrator"
+            )
+            self.error_handler.handle_error(e, context)
+            
             self.logger.error(f"Configuration loading failed: {str(e)}", exception=e)
             raise RuntimeError(f"Cannot proceed without valid configurations: {str(e)}")
 

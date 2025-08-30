@@ -30,14 +30,15 @@ class NMAPScanner(BaseScanner):
     - SNMP device detection (port 161)
     """
     
-    def __init__(self, logger=None):
+    def __init__(self, logger=None, error_handler=None):
         """
         Initialize NMAP scanner.
         
         Args:
             logger: Logger instance for outputting scan progress and errors
+            error_handler: ErrorHandler instance for centralized error management
         """
-        super().__init__(logger)
+        super().__init__(logger, error_handler)
         self.scanner_type = "nmap"
         self.snmp_enabled_devices: Set[str] = set()
     

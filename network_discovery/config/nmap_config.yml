@@ -1,28 +1,126 @@
 # NMAP Scanner Configuration
 # Configuration for NMAP-based port scanning and OS detection
+#
+# NMAP (Network Mapper) is used for port scanning, service detection,
+# and operating system fingerprinting. This provides detailed information
+# about services running on discovered devices.
 
 nmap:
-  # TCP SYN scan type
+  # Scan type - determines how NMAP probes for open ports
+  # "-sS" = TCP SYN scan (stealth scan, requires root/admin privileges)
+  #         - Fast and stealthy, doesn't complete TCP connections
+  #         - Most accurate for port detection
+  #         - Requires elevated privileges
+  # "-sT" = TCP connect scan (no privileges required)
+  #         - Slower but works without root/admin
+  #         - Completes full TCP connections
+  #         - More detectable by intrusion detection systems
+  # "-sU" = UDP scan (very slow, use with caution)
+  # "-sn" = Ping scan only (no port scanning)
   scan_type: "-sS"
   
-  # Port range to scan (-F for fast scan of top 100 ports)
+  # Port range to scan
+  # "-F" = Fast scan (top 100 most common ports)
+  #        - Fastest option, covers most common services
+  #        - Good for initial discovery
+  # "-p-" = Scan all 65535 ports (very slow)
+  # "-p 1-1000" = Scan specific port range
+  # "-p 22,80,443,8080" = Scan specific ports
+  # "--top-ports 1000" = Scan top N most common ports
   port_range: "-F"
   
-  # Timing template (T0-T5, T4 is aggressive)
+  # Timing template - controls scan speed vs accuracy
+  # "-T0" = Paranoid (very slow, evades IDS)
+  # "-T1" = Sneaky (slow, evades IDS)
+  # "-T2" = Polite (slower, less bandwidth)
+  # "-T3" = Normal (default timing)
+  # "-T4" = Aggressive (faster, assumes good network)
+  # "-T5" = Insane (very fast, may miss results)
+  # Recommended: T3 for production, T4 for lab environments
   timing: "-T4"
   
-  # OS detection flag
+  # OS detection - attempts to identify operating system
+  # "-O" = Enable OS detection
+  # Requires elevated privileges and open/closed ports
+  # May not work on all devices (firewalls, etc.)
   os_detection: "-O"
   
-  # Service version detection flag
+  # Service version detection - identifies service versions
+  # "-sV" = Enable service version detection
+  # Slower but provides detailed service information
+  # Useful for vulnerability assessment
   service_detection: "-sV"
   
-  # Additional NMAP flags and scripts (removed problematic scripts for Windows stability)
+  # Additional NMAP flags and NSE scripts
+  # NSE (NMAP Scripting Engine) provides extended functionality
+  # Common useful scripts:
+  #   - "banner" = Grab service banners
+  #   - "default" = Run default safe scripts
+  #   - "vuln" = Check for known vulnerabilities (slow)
+  #   - "discovery" = Additional discovery scripts
+  #   - "safe" = Only safe scripts (no intrusive tests)
+  # Note: Some scripts may be detected by security systems
   additional_flags:
     - "--script=banner"
+    # Uncomment for more detailed scanning (slower):
+    # - "--script=default"
+    # - "--script=safe"
+    # Uncomment for vulnerability scanning (much slower):
+    # - "--script=vuln"
   
-  # Timeout for NMAP scan in seconds
+  # Timeout for entire NMAP scan in seconds
+  # Increase for large networks or slow connections
+  # Decrease for faster scans (may miss slow devices)
+  # Recommended: 300-1800 seconds depending on network size
   timeout: 300
   
-  # Maximum number of parallel hosts to scan
+  # Maximum number of parallel hosts to scan simultaneously
+  # Higher values = faster scanning but more network load
+  # Lower values = gentler on network but slower
+  # Recommended ranges:
+  #   - Small networks: 10-25 hosts
+  #   - Medium networks: 25-75 hosts
+  #   - Large networks: 50-150 hosts
+  # Note: Too many parallel scans may overwhelm network equipment
   max_parallel: 50
+
+# Performance Tuning Examples:
+#
+# Fast scan (less accurate, may miss services):
+# scan_type: "-sT"
+# port_range: "-F"
+# timing: "-T5"
+# os_detection: ""
+# service_detection: ""
+# additional_flags: []
+# max_parallel: 100
+#
+# Thorough scan (slow but comprehensive):
+# scan_type: "-sS"
+# port_range: "--top-ports 1000"
+# timing: "-T3"
+# os_detection: "-O"
+# service_detection: "-sV"
+# additional_flags:
+#   - "--script=default"
+#   - "--script=safe"
+# max_parallel: 25
+#
+# Stealth scan (evades detection):
+# scan_type: "-sS"
+# port_range: "-F"
+# timing: "-T1"
+# os_detection: ""
+# service_detection: ""
+# additional_flags:
+#   - "-f"  # Fragment packets
+# max_parallel: 5
+#
+# Network-friendly scan (minimal impact):
+# scan_type: "-sT"
+# port_range: "-p 22,80,443,8080"
+# timing: "-T2"
+# os_detection: ""
+# service_detection: ""
+# additional_flags: []
+# max_parallel: 10

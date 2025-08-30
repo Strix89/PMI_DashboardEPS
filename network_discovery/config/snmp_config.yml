@@ -1,28 +1,153 @@
 # SNMP Scanner Configuration
 # Configuration for SNMP-based device information gathering
+#
+# SNMP (Simple Network Management Protocol) is used to query network devices
+# for detailed configuration and status information. This is particularly
+# useful for identifying network equipment like routers, switches, and printers.
 
 snmp:
-  # SNMP versions to try (1, 2, or 3)
+  # SNMP versions to try (in order of preference)
+  # Version 1: Original SNMP, simple but limited security
+  # Version 2c: Enhanced SNMP with better error handling and data types
+  # Version 3: Secure SNMP with authentication and encryption (not implemented yet)
+  # 
+  # Recommendation: Try v2c first (faster), then v1 for compatibility
+  # Most modern devices support v2c, older devices may only support v1
   versions: [2, 1]
   
   # Community strings to try for SNMP access
+  # Community strings act as passwords for SNMP access
+  # "public" is the most common read-only community string
+  # "private" is sometimes used for read-write access
+  # Add custom community strings used in your environment
+  # 
+  # Security Note: Default community strings are well-known and should
+  # be changed on production devices for security
   communities:
     - "public"
     - "private"
-    - "admin"
-    - "community"
+    # Add your custom community strings here:
+    # - "monitoring"
+    # - "readonly"
+    # - "network"
   
   # Timeout for SNMP requests in seconds
-  timeout: 5
+  # Increase for slow networks or devices
+  # Decrease for faster scanning (may miss slow devices)
+  # Recommended: 5-15 seconds depending on network conditions
+  timeout: 10
   
   # Number of retries for failed SNMP requests
-  retries: 2
+  # Increase for unreliable networks
+  # Decrease for faster scanning
+  # Recommended: 1-3 retries
+  retries: 1
   
-  # Maximum number of OIDs to request in a single SNMP operation
-  max_oids_per_request: 10
+  # Maximum number of OIDs to request in a single SNMP GET operation
+  # Higher values = fewer requests but larger packets (more efficient)
+  # Lower values = more requests but smaller packets (more reliable)
+  # 
+  # Considerations:
+  # - Some devices have limits on packet size or number of OIDs per request
+  # - Network MTU may limit packet size
+  # - Higher values may cause timeouts on slow devices
+  # 
+  # Typical range: 1-50, recommended: 10-30
+  max_oids_per_request: 20
+  
+  # Maximum number of OIDs to walk from each base OID
+  # Prevents excessive data collection from devices with large MIB trees
+  # Increase for comprehensive device information
+  # Decrease for faster scanning and smaller reports
+  # Recommended: 50-500 depending on requirements
+  max_walk_oids: 100
   
   # OID trees to walk for device information
+  # SNMP walks retrieve all OIDs under a specified base OID
+  # This provides comprehensive information but can be slow
+  # 
+  # Common useful OID trees:
+  # 1.3.6.1.2.1.1     - System information (sysDescr, sysName, etc.)
+  # 1.3.6.1.2.1.2     - Interface information (ifTable)
+  # 1.3.6.1.2.1.4     - IP information (ipAddrTable, ipRouteTable)
+  # 1.3.6.1.2.1.17    - Bridge/Switch information
+  # 1.3.6.1.4.1       - Enterprise-specific information (vendor MIBs)
   walk_oids:
-    - "1.3.6.1.2.1.1"      # System information (sysDescr, sysObjectID, etc.)
-    - "1.3.6.1.2.1.2"      # Interface information (ifTable)
-    - "1.3.6.1.2.1.4"      # IP information (ipAddrTable, ipRouteTable)
+    #- "1.3.6.1.2.1.1"      # System information (essential)
+    # Uncomment for more detailed information (slower):
+    # - "1.3.6.1.2.1.2.2.1.2"  # Interface descriptions
+    #- "1.3.6.1.2.1.4.20"     # IP address table
+    # - "1.3.6.1.2.1.17.1"     # Bridge information (switches)
+  
+  # Specific OIDs to query individually (GET requests)
+  # These OIDs will be queried directly on each device
+  # Faster than walking but only gets specific values
+  # Use for critical information that's always needed
+  specific_oids:
+    # Essential System Information
+    - oid: "1.3.6.1.2.1.1.1.0"
+      name: "sysDescr"
+      description: "System description - device type and software version"
+    - oid: "1.3.6.1.2.1.1.2.0"
+      name: "sysObjectID"
+      description: "System object identifier - vendor and model information"
+    - oid: "1.3.6.1.2.1.1.3.0"
+      name: "sysUpTime"
+      description: "System uptime in hundredths of seconds"
+    - oid: "1.3.6.1.2.1.1.4.0"
+      name: "sysContact"
+      description: "System contact information"
+    - oid: "1.3.6.1.2.1.1.5.0"
+      name: "sysName"
+      description: "System name/hostname"
+    - oid: "1.3.6.1.2.1.1.6.0"
+      name: "sysLocation"
+      description: "System physical location"
+    - oid: "1.3.6.1.2.1.1.7.0"
+      name: "sysServices"
+      description: "System services (layer information)"
+    
+    # Network Interface Information
+    - oid: "1.3.6.1.2.1.2.1.0"
+      name: "ifNumber"
+      description: "Number of network interfaces"
+    
+    # Additional useful OIDs (uncomment as needed):
+    # - oid: "1.3.6.1.2.1.25.1.1.0"
+    #   name: "hrSystemUptime"
+    #   description: "Host resources system uptime"
+    # - oid: "1.3.6.1.2.1.25.3.2.1.3.1"
+    #   name: "hrProcessorLoad"
+    #   description: "Processor load percentage"
+
+# Performance Tuning Examples:
+#
+# Fast scan (minimal data collection):
+# versions: [2]
+# communities: ["public"]
+# timeout: 5
+# retries: 1
+# max_oids_per_request: 50
+# max_walk_oids: 50
+# walk_oids: []  # No walks, only specific OIDs
+#
+# Comprehensive scan (detailed information):
+# versions: [2, 1]
+# communities: ["public", "private", "monitoring"]
+# timeout: 15
+# retries: 2
+# max_oids_per_request: 10
+# max_walk_oids: 500
+# walk_oids:
+#   - "1.3.6.1.2.1.1"
+#   - "1.3.6.1.2.1.2"
+#   - "1.3.6.1.2.1.4"
+#
+# Network-friendly scan (minimal impact):
+# versions: [2]
+# communities: ["public"]
+# timeout: 20
+# retries: 1
+# max_oids_per_request: 5
+# max_walk_oids: 25
+# walk_oids: []

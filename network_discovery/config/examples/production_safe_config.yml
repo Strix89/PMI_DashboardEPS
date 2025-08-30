@@ -1,0 +1,47 @@
+# Production-Safe Scan Configuration Example
+# Optimized for minimal network impact and stealth
+# Trade-offs: Slower scanning, may miss some information, network-friendly
+
+arp:
+  timeout: 3                    # Moderate timeout
+  retries: 2                    # Conservative retries
+  interface: null               # Auto-detect interface
+  method: "scapy"              # Reliable method
+  parallel_threads: 3           # Very low parallelism
+
+nmap:
+  scan_type: "-sT"             # TCP connect scan (no raw sockets)
+  port_range: "-p 22,80,443,8080,161,23" # Only essential ports
+  timing: "-T2"                # Polite timing (slow and gentle)
+  os_detection: ""             # Skip OS detection (can be intrusive)
+  service_detection: ""        # Skip service detection (can be intrusive)
+  additional_flags:            # Minimal and polite options
+    - "--max-rate=100"         # Low packet rate
+    - "--max-retries=1"        # Minimal retries
+    - "--host-timeout=300s"    # Long host timeout
+  timeout: 900                 # Very long timeout (15 minutes)
+  max_parallel: 5              # Very low parallelism
+
+snmp:
+  versions: [2]                # Only SNMPv2c (most common)
+  communities:                 # Only try public (least intrusive)
+    - "public"
+  timeout: 20                  # Long timeout for slow responses
+  retries: 1                   # No retries to minimize traffic
+  max_oids_per_request: 5      # Small batches
+  max_walk_oids: 25            # Minimal data collection
+  walk_oids: []                # No walks to minimize traffic
+  specific_oids:               # Only essential system information
+    - oid: "1.3.6.1.2.1.1.1.0"
+      name: "sysDescr"
+      description: "System description"
+    - oid: "1.3.6.1.2.1.1.5.0"
+      name: "sysName"
+      description: "System name"
+    - oid: "1.3.6.1.2.1.1.6.0"
+      name: "sysLocation"
+      description: "System location"
+
+# Expected scan time for /24 network: 600-1200 seconds (10-20 minutes)
+# Use case: Production networks, compliance scanning, stealth assessment
+# Benefits: Minimal network impact, low detection risk, safe for critical systems

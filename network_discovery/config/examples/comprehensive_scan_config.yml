@@ -1,0 +1,80 @@
+# Comprehensive Scan Configuration Example
+# Optimized for maximum information gathering and accuracy
+# Trade-offs: Slower scanning, higher network impact, more detailed results
+
+arp:
+  timeout: 5                    # Long timeout for reliability
+  retries: 3                    # Multiple retries for accuracy
+  interface: null               # Auto-detect interface
+  method: "scapy"              # Reliable cross-platform method
+  parallel_threads: 5           # Conservative parallelism
+
+nmap:
+  scan_type: "-sS"             # TCP SYN scan (requires root, most accurate)
+  port_range: "--top-ports 1000" # Scan top 1000 ports (comprehensive)
+  timing: "-T3"                # Normal timing (balanced)
+  os_detection: "-O"           # Enable OS fingerprinting
+  service_detection: "-sV"     # Enable service version detection
+  additional_flags:            # Comprehensive scanning options
+    - "--script=default"       # Run default NSE scripts
+    - "--script=safe"          # Run safe discovery scripts
+    - "--script=banner"        # Grab service banners
+    - "--traceroute"           # Include traceroute information
+    - "--reason"               # Show reason for port states
+  timeout: 1800                # Long timeout (30 minutes)
+  max_parallel: 25             # Moderate parallelism
+
+snmp:
+  versions: [2, 1]             # Try both SNMP versions
+  communities:                 # Try multiple community strings
+    - "public"
+    - "private"
+    - "monitoring"
+    - "readonly"
+    - "admin"
+  timeout: 15                  # Long timeout for slow devices
+  retries: 3                   # Multiple retries
+  max_oids_per_request: 10     # Small batches for reliability
+  max_walk_oids: 500           # Extensive data collection
+  walk_oids:                   # Walk multiple OID trees
+    - "1.3.6.1.2.1.1"         # System information
+    - "1.3.6.1.2.1.2"         # Interface information
+    - "1.3.6.1.2.1.4"         # IP information
+    - "1.3.6.1.2.1.17"        # Bridge information (switches)
+  specific_oids:               # Comprehensive OID list
+    # System Information
+    - oid: "1.3.6.1.2.1.1.1.0"
+      name: "sysDescr"
+      description: "System description"
+    - oid: "1.3.6.1.2.1.1.2.0"
+      name: "sysObjectID"
+      description: "System object identifier"
+    - oid: "1.3.6.1.2.1.1.3.0"
+      name: "sysUpTime"
+      description: "System uptime"
+    - oid: "1.3.6.1.2.1.1.4.0"
+      name: "sysContact"
+      description: "System contact"
+    - oid: "1.3.6.1.2.1.1.5.0"
+      name: "sysName"
+      description: "System name"
+    - oid: "1.3.6.1.2.1.1.6.0"
+      name: "sysLocation"
+      description: "System location"
+    - oid: "1.3.6.1.2.1.1.7.0"
+      name: "sysServices"
+      description: "System services"
+    # Interface Information
+    - oid: "1.3.6.1.2.1.2.1.0"
+      name: "ifNumber"
+      description: "Number of interfaces"
+    # Host Resources
+    - oid: "1.3.6.1.2.1.25.1.1.0"
+      name: "hrSystemUptime"
+      description: "Host resources uptime"
+    - oid: "1.3.6.1.2.1.25.3.2.1.3.1"
+      name: "hrProcessorLoad"
+      description: "Processor load"
+
+# Expected scan time for /24 network: 300-600 seconds (5-10 minutes)
+# Use case: Security assessment, detailed inventory, compliance auditing

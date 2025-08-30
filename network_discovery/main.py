@@ -16,6 +16,8 @@ from typing import Optional
 
 from .core.scanner_orchestrator import ScannerOrchestrator
 from .utils.logger import Logger, LogLevel, get_logger, set_log_level
+from .utils.error_handler import ErrorHandler, ToolValidator, ErrorContext, ErrorType, ErrorSeverity
+from .utils.network_validator import NetworkValidator
 
 
 class NetworkDiscoveryApp:
@@ -28,8 +30,12 @@ class NetworkDiscoveryApp:
     def __init__(self):
         """Initialize the application."""
         self.logger = get_logger(__name__)
+        self.error_handler = ErrorHandler(self.logger)
+        self.tool_validator = ToolValidator(self.error_handler)
+        self.network_validator = NetworkValidator(self.error_handler, self.logger)
         self.orchestrator: Optional[ScannerOrchestrator] = None
         self.shutdown_requested = False
+        self.cleanup_performed = False
         
         # Register signal handlers for graceful shutdown
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -57,6 +63,10 @@ class NetworkDiscoveryApp:
     
     def _cleanup(self) -> None:
         """Perform cleanup operations before shutdown."""
+        if self.cleanup_performed:
+            return  # Avoid duplicate cleanup
+            
+        self.cleanup_performed = True
         self.logger.info("Performing cleanup operations...")
         
         # Add any cleanup logic here if needed
@@ -129,44 +139,77 @@ class NetworkDiscoveryApp:
     
     def _perform_preflight_checks(self) -> bool:
         """
-        Perform pre-flight checks for required external tools.
+        Perform comprehensive pre-flight checks for required external tools and system readiness.
         
         Returns:
             bool: True if all checks pass, False otherwise
         """
         self.logger.section("PRE-FLIGHT CHECKS")
         
-        required_tools = ["nmap", "arping"]
         all_checks_passed = True
         
-        for tool in required_tools:
-            self.logger.info(f"Checking availability of {tool}...")
+        try:
+            # Check external tools using ToolValidator
+            self.logger.info("Validating external tools...")
+            tools_valid, missing_tools = self.tool_validator.validate_all_tools()
             
-            # Check if tool is available
-            if not self._check_tool_availability(tool):
+            if not tools_valid:
                 all_checks_passed = False
-                self._suggest_tool_installation(tool)
-                continue
+                self.logger.error(f"Missing or invalid tools: {', '.join(missing_tools)}")
+            else:
+                self.logger.success("All external tools validated successfully")
             
-            # Check if tool can be executed
-            if not self._check_tool_permissions(tool):
-                self.logger.warning(f"Tool {tool} may require elevated permissions")
-                self._suggest_permission_solution(tool)
-        
-        # Check Python dependencies
-        self.logger.info("Checking Python dependencies...")
-        missing_deps = self._check_python_dependencies()
-        if missing_deps:
-            all_checks_passed = False
-            self.logger.error(f"Missing Python dependencies: {', '.join(missing_deps)}")
-            self.logger.info("Install missing dependencies with: pip install -r requirements.txt")
-        
-        if all_checks_passed:
-            self.logger.success("All pre-flight checks passed")
-        else:
-            self.logger.error("Some pre-flight checks failed - see messages above")
-        
-        return all_checks_passed
+            # Check Python dependencies
+            self.logger.info("Checking Python dependencies...")
+            missing_deps = self._check_python_dependencies()
+            if missing_deps:
+                all_checks_passed = False
+                context = ErrorContext(
+                    error_type=ErrorType.CONFIGURATION_ERROR,
+                    severity=ErrorSeverity.HIGH,
+                    operation="check_python_dependencies",
+                    component="NetworkDiscoveryApp",
+                    additional_info={"missing_dependencies": missing_deps}
+                )
+                from .utils.error_handler import ConfigurationError
+                error = ConfigurationError(f"Missing Python dependencies: {', '.join(missing_deps)}")
+                self.error_handler.handle_error(error, context)
+            else:
+                self.logger.success("All Python dependencies available")
+            
+            # Test basic network connectivity
+            self.logger.info("Testing basic network connectivity...")
+            connectivity_result = self.network_validator.ping_host("8.8.8.8", count=1, timeout=3.0)
+            if not connectivity_result.is_valid:
+                self.logger.warning("Basic network connectivity test failed - network operations may be limited")
+                # Don't fail pre-flight for this, just warn
+            else:
+                self.logger.success("Basic network connectivity confirmed")
+            
+            # Check system permissions for network operations
+            self.logger.info("Checking system permissions...")
+            if not self._check_network_permissions():
+                self.logger.warning("Limited network permissions detected - some operations may require elevated privileges")
+                # Don't fail pre-flight for this, just warn
+            else:
+                self.logger.success("Network permissions validated")
+            
+            if all_checks_passed:
+                self.logger.success("All critical pre-flight checks passed")
+            else:
+                self.logger.error("Some critical pre-flight checks failed - see messages above")
+            
+            return all_checks_passed
+            
+        except Exception as e:
+            context = ErrorContext(
+                error_type=ErrorType.CONFIGURATION_ERROR,
+                severity=ErrorSeverity.CRITICAL,
+                operation="perform_preflight_checks",
+                component="NetworkDiscoveryApp"
+            )
+            self.error_handler.handle_error(e, context)
+            return False
     
     def _check_python_dependencies(self) -> list:
         """
@@ -193,6 +236,44 @@ class NetworkDiscoveryApp:
                 self.logger.debug(f"Python package {package} is missing")
         
         return missing_packages
+    
+    def _check_network_permissions(self) -> bool:
+        """
+        Check if the current user has sufficient permissions for network operations.
+        
+        Returns:
+            bool: True if permissions are adequate, False otherwise
+        """
+        try:
+            # Try to create a raw socket (requires elevated permissions on most systems)
+            import socket
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
+                sock.close()
+                self.logger.debug("Raw socket creation successful - elevated permissions available")
+                return True
+            except (socket.error, PermissionError, OSError):
+                self.logger.debug("Raw socket creation failed - limited permissions")
+                
+                # Check if we can at least create regular sockets
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.close()
+                    self.logger.debug("Regular socket creation successful")
+                    return True
+                except Exception:
+                    self.logger.debug("Socket creation failed completely")
+                    return False
+                    
+        except Exception as e:
+            context = ErrorContext(
+                error_type=ErrorType.PERMISSION_ERROR,
+                severity=ErrorSeverity.MEDIUM,
+                operation="check_network_permissions",
+                component="NetworkDiscoveryApp"
+            )
+            self.error_handler.handle_error(e, context)
+            return False
     
     def _suggest_tool_installation(self, tool_name: str) -> None:
         """
@@ -321,7 +402,8 @@ class NetworkDiscoveryApp:
             self.orchestrator = ScannerOrchestrator(
                 config_dir=config_dir,
                 output_dir=output_dir,
-                skip_arp=args.skip_arp
+                skip_arp=args.skip_arp,
+                error_handler=self.error_handler
             )
             
             # Check for shutdown request before starting scan

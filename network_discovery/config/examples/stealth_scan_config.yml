@@ -1,0 +1,45 @@
+# Stealth Scan Configuration Example
+# Optimized for evading detection by security systems
+# Trade-offs: Very slow scanning, may miss information, designed for covert operation
+
+arp:
+  timeout: 5                    # Long timeout to avoid suspicion
+  retries: 1                    # Minimal retries to reduce traffic
+  interface: null               # Auto-detect interface
+  method: "scapy"              # More controllable than arping
+  parallel_threads: 1           # Sequential scanning only
+
+nmap:
+  scan_type: "-sS"             # TCP SYN scan (stealthier than connect)
+  port_range: "-p 22,80,443"   # Only most common ports
+  timing: "-T1"                # Sneaky timing (very slow)
+  os_detection: ""             # Skip OS detection (can trigger IDS)
+  service_detection: ""        # Skip service detection (can trigger IDS)
+  additional_flags:            # Stealth-focused options
+    - "-f"                     # Fragment packets
+    - "--mtu=24"               # Small MTU for fragmentation
+    - "--scan-delay=10s"       # 10 second delay between probes
+    - "--max-rate=10"          # Very low packet rate
+    - "--randomize-hosts"      # Randomize target order
+    - "--spoof-mac=0"          # Randomize MAC address
+  timeout: 3600                # Very long timeout (1 hour)
+  max_parallel: 1              # No parallelism
+
+snmp:
+  versions: [1]                # Only SNMPv1 (less likely to be monitored)
+  communities:                 # Only try public
+    - "public"
+  timeout: 30                  # Very long timeout
+  retries: 0                   # No retries to minimize traffic
+  max_oids_per_request: 1      # Single OID requests only
+  max_walk_oids: 5             # Minimal data collection
+  walk_oids: []                # No walks
+  specific_oids:               # Absolute minimum information
+    - oid: "1.3.6.1.2.1.1.1.0"
+      name: "sysDescr"
+      description: "System description"
+
+# Expected scan time for /24 network: 2-4 hours
+# Use case: Penetration testing, red team operations, covert reconnaissance
+# Benefits: Minimal detection risk, evades most IDS/IPS systems
+# Warning: Use only with proper authorization and in controlled environments

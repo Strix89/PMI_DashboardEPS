@@ -27,14 +27,15 @@ class ARPScanner(BaseScanner):
     parallel scanning for improved performance.
     """
     
-    def __init__(self, logger: Optional[Logger] = None):
+    def __init__(self, logger: Optional[Logger] = None, error_handler=None):
         """
         Initialize the ARP scanner.
         
         Args:
             logger: Logger instance for outputting scan progress and errors
+            error_handler: ErrorHandler instance for centralized error management
         """
-        super().__init__(logger)
+        super().__init__(logger, error_handler)
         self.scanner_type = "ARP"
         self._lock = threading.Lock()
         self._scapy_available = self._check_scapy_availability()

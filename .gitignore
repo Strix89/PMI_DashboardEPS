@@ -31,6 +31,8 @@ wheels/
 logs/*
 output/*
 .kiro/
+network_discovery/results/*
+CruscottoProxmox.html
 
 # Application Generated Files
 logs/

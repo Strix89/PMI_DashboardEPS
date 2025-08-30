@@ -47,7 +47,9 @@ class SNMPConfig:
     timeout: int = 5
     retries: int = 2
     max_oids_per_request: int = 10
+    max_walk_oids: int = 100
     walk_oids: list = None
+    specific_oids: list = None
     
     def __post_init__(self):
         if self.versions is None:
@@ -56,10 +58,9 @@ class SNMPConfig:
             self.communities = ["public", "private", "admin"]
         if self.walk_oids is None:
             self.walk_oids = [
-                "1.3.6.1.2.1.1",  # System info
-                "1.3.6.1.2.1.2",  # Interfaces
-                "1.3.6.1.2.1.4"   # IP info
             ]
+        if self.specific_oids is None:
+            self.specific_oids = []
 
 
 class ConfigLoader:
@@ -207,11 +208,13 @@ class ConfigLoader:
                 timeout=self._validate_positive_int(snmp_data.get('timeout', 5), 'timeout', 5),
                 retries=self._validate_positive_int(snmp_data.get('retries', 2), 'retries', 2),
                 max_oids_per_request=self._validate_positive_int(snmp_data.get('max_oids_per_request', 10), 'max_oids_per_request', 10),
+                max_walk_oids=self._validate_positive_int(snmp_data.get('max_walk_oids', 100), 'max_walk_oids', 100),
                 walk_oids=snmp_data.get('walk_oids', [
                     "1.3.6.1.2.1.1",  # System info
                     "1.3.6.1.2.1.2",  # Interfaces
                     "1.3.6.1.2.1.4"   # IP info
-                ])
+                ]),
+                specific_oids=snmp_data.get('specific_oids', [])
             )
             
         except yaml.YAMLError as e:
@@ -365,6 +368,7 @@ class ConfigLoader:
                 'timeout': 5,
                 'retries': 2,
                 'max_oids_per_request': 10,
+                'max_walk_oids': 100,
                 'walk_oids': [
                     '1.3.6.1.2.1.1',  # System info
                     '1.3.6.1.2.1.2',  # Interfaces
