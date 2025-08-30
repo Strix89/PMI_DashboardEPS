@@ -1,0 +1,76 @@
+<!-- Navigation Component -->
+<!-- This component is included in base.html and provides the main navigation tabs -->
+
+<nav class="main-navigation" role="navigation" aria-label="Main navigation">
+    <div class="nav-container">
+        <ul class="nav-tabs" role="tablist">
+            <li class="nav-item">
+                <button 
+                    class="nav-link" 
+                    data-tab="health" 
+                    role="tab" 
+                    aria-controls="health-panel" 
+                    aria-selected="false"
+                    id="health-tab"
+                >
+                    <i class="fas fa-heartbeat" aria-hidden="true"></i>
+                    <span class="nav-text">HEALTH</span>
+                    <span class="dev-badge" aria-label="Under development">DEV</span>
+                </button>
+            </li>
+            <li class="nav-item">
+                <button 
+                    class="nav-link" 
+                    data-tab="acronis" 
+                    role="tab" 
+                    aria-controls="acronis-panel" 
+                    aria-selected="false"
+                    id="acronis-tab"
+                >
+                    <i class="fas fa-shield-alt" aria-hidden="true"></i>
+                    <span class="nav-text">ACRONIS</span>
+                    <span class="dev-badge" aria-label="Under development">DEV</span>
+                </button>
+            </li>
+            <li class="nav-item">
+                <button 
+                    class="nav-link active" 
+                    data-tab="proxmox" 
+                    role="tab" 
+                    aria-controls="proxmox-panel" 
+                    aria-selected="true"
+                    id="proxmox-tab"
+                >
+                    <i class="fas fa-server" aria-hidden="true"></i>
+                    <span class="nav-text">PROXMOX</span>
+                </button>
+            </li>
+            <li class="nav-item">
+                <button 
+                    class="nav-link" 
+                    data-tab="anomaly" 
+                    role="tab" 
+                    aria-controls="anomaly-panel" 
+                    aria-selected="false"
+                    id="anomaly-tab"
+                >
+                    <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                    <span class="nav-text">ANOMALY</span>
+                    <span class="dev-badge" aria-label="Under development">DEV</span>
+                </button>
+            </li>
+        </ul>
+    </div>
+</nav>
+
+<!-- 
+Navigation Features:
+- Four main tabs: HEALTH, ACRONIS, PROXMOX, ANOMALY
+- PROXMOX is the default active tab
+- Development badges for tabs under development
+- Full keyboard navigation support (Arrow keys, Home, End, Enter, Space)
+- ARIA attributes for accessibility
+- Responsive design that adapts to mobile screens
+- Icons from Font Awesome 6
+- Orange primary color theme integration
+-->

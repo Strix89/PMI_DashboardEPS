@@ -1,0 +1,374 @@
+<!-- Node Configuration Interface Component -->
+<div class="node-config-section">
+    <!-- Configuration Header -->
+    <div class="config-header">
+        <div class="config-title">
+            <h3>
+                <i class="fas fa-cog"></i>
+                Node Configuration
+            </h3>
+            <p class="config-description">
+                Add and manage your Proxmox nodes. Configure connection settings and test connectivity.
+            </p>
+        </div>
+        <button id="add-node-btn" class="btn btn-primary">
+            <i class="fas fa-plus"></i>
+            Add Node
+        </button>
+    </div>
+
+    <!-- Node Configuration Form (Hidden by default) -->
+    <div id="node-config-form" class="config-form" style="display: none;">
+        <div class="form-card">
+            <div class="form-header">
+                <h4 id="form-title">Add New Node</h4>
+                <button id="close-form-btn" class="btn-close" aria-label="Close form">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <form id="node-form" novalidate>
+                <input type="hidden" id="node-id" name="node_id">
+                
+                <!-- Basic Information -->
+                <div class="form-section">
+                    <h5>Basic Information</h5>
+                    
+                    <div class="form-group">
+                        <label for="node-name" class="form-label required">
+                            Display Name
+                        </label>
+                        <input 
+                            type="text" 
+                            id="node-name" 
+                            name="name" 
+                            class="form-control" 
+                            placeholder="e.g., Production Server 1"
+                            required
+                            maxlength="100"
+                        >
+                        <div class="form-help">
+                            A friendly name to identify this node in the dashboard
+                        </div>
+                        <div class="invalid-feedback"></div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="node-host" class="form-label required">
+                            Host/IP Address
+                        </label>
+                        <input 
+                            type="text" 
+                            id="node-host" 
+                            name="host" 
+                            class="form-control" 
+                            placeholder="e.g., 192.168.1.100 or proxmox.example.com"
+                            required
+                        >
+                        <div class="form-help">
+                            IP address or hostname of your Proxmox server
+                        </div>
+                        <div class="invalid-feedback"></div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="node-port" class="form-label">
+                            Port
+                        </label>
+                        <input 
+                            type="number" 
+                            id="node-port" 
+                            name="port" 
+                            class="form-control" 
+                            placeholder="8006"
+                            min="1"
+                            max="65535"
+                            value="8006"
+                        >
+                        <div class="form-help">
+                            Proxmox web interface port (default: 8006)
+                        </div>
+                        <div class="invalid-feedback"></div>
+                    </div>
+                </div>
+
+                <!-- Authentication -->
+                <div class="form-section">
+                    <h5>Authentication</h5>
+                    
+                    <div class="form-group">
+                        <label for="api-token-id" class="form-label">
+                            API Token ID
+                        </label>
+                        <input 
+                            type="text" 
+                            id="api-token-id" 
+                            name="api_token_id" 
+                            class="form-control" 
+                            placeholder="e.g., user@pam!token-name"
+                        >
+                        <div class="form-help">
+                            API token ID from Proxmox (optional, leave empty for username/password auth)
+                        </div>
+                        <div class="invalid-feedback"></div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="api-token-secret" class="form-label">
+                            API Token Secret
+                        </label>
+                        <input 
+                            type="password" 
+                            id="api-token-secret" 
+                            name="api_token_secret" 
+                            class="form-control" 
+                            placeholder="Enter API token secret"
+                        >
+                        <div class="form-help">
+                            API token secret from Proxmox
+                        </div>
+                        <div class="invalid-feedback"></div>
+                    </div>
+                </div>
+
+                <!-- Connection Settings -->
+                <div class="form-section">
+                    <h5>Connection Settings</h5>
+                    
+                    <div class="form-group">
+                        <div class="form-check">
+                            <input 
+                                type="checkbox" 
+                                id="ssl-verify" 
+                                name="ssl_verify" 
+                                class="form-check-input"
+                            >
+                            <label for="ssl-verify" class="form-check-label">
+                                Verify SSL Certificate
+                            </label>
+                        </div>
+                        <div class="form-help">
+                            Disable for self-signed certificates (not recommended for production)
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="timeout" class="form-label">
+                            Connection Timeout (seconds)
+                        </label>
+                        <input 
+                            type="number" 
+                            id="timeout" 
+                            name="timeout" 
+                            class="form-control" 
+                            placeholder="30"
+                            min="5"
+                            max="300"
+                            value="30"
+                        >
+                        <div class="form-help">
+                            Maximum time to wait for API responses
+                        </div>
+                        <div class="invalid-feedback"></div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <div class="form-check">
+                            <input 
+                                type="checkbox" 
+                                id="node-enabled" 
+                                name="enabled" 
+                                class="form-check-input"
+                                checked
+                            >
+                            <label for="node-enabled" class="form-check-label">
+                                Enable Node
+                            </label>
+                        </div>
+                        <div class="form-help">
+                            Disabled nodes will not be monitored or displayed
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Form Actions -->
+                <div class="form-actions">
+                    <button type="button" id="test-connection-btn" class="btn btn-secondary">
+                        <i class="fas fa-plug"></i>
+                        Test Connection
+                    </button>
+                    <div class="form-actions-right">
+                        <button type="button" id="cancel-form-btn" class="btn btn-outline">
+                            Cancel
+                        </button>
+                        <button type="submit" id="save-node-btn" class="btn btn-primary">
+                            <i class="fas fa-save"></i>
+                            <span class="btn-text">Save Node</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Connection Test Results -->
+    <div id="connection-test-result" class="test-result" style="display: none;">
+        <div class="test-result-content">
+            <div class="test-result-icon">
+                <i class="fas fa-spinner fa-spin"></i>
+            </div>
+            <div class="test-result-message">
+                Testing connection...
+            </div>
+        </div>
+    </div>
+
+    <!-- Existing Nodes List -->
+    <div class="nodes-list">
+        <div class="nodes-header">
+            <h4>Configured Nodes</h4>
+            <div class="nodes-actions">
+                <button id="refresh-nodes-btn" class="btn btn-outline btn-sm">
+                    <i class="fas fa-sync-alt"></i>
+                    Refresh
+                </button>
+                <div class="auto-refresh-toggle">
+                    <label class="form-check">
+                        <input type="checkbox" id="auto-refresh-toggle" class="form-check-input" checked>
+                        <span class="form-check-label">Auto-refresh</span>
+                    </label>
+                </div>
+                <div id="refresh-indicator" class="refresh-indicator" style="display: none;">
+                    <i class="fas fa-circle"></i>
+                    <span>Updating...</span>
+                </div>
+            </div>
+        </div>
+        
+        <div id="nodes-container" class="nodes-container">
+            <!-- Nodes will be loaded here dynamically -->
+            <div class="loading-placeholder">
+                <i class="fas fa-spinner fa-spin"></i>
+                Loading nodes...
+            </div>
+        </div>
+        
+        <!-- Empty State -->
+        <div id="nodes-empty-state" class="empty-state" style="display: none;">
+            <div class="empty-state-content">
+                <i class="fas fa-server empty-state-icon"></i>
+                <h5>No Nodes Configured</h5>
+                <p>Add your first Proxmox node to get started with infrastructure management.</p>
+                <button class="btn btn-primary" onclick="document.getElementById('add-node-btn').click()">
+                    <i class="fas fa-plus"></i>
+                    Add Your First Node
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Node Card Template -->
+<template id="node-card-template">
+    <div class="node-card" data-node-id="">
+        <div class="node-card-header">
+            <div class="node-info">
+                <h5 class="node-name">
+                    <i class="fas fa-server" aria-hidden="true"></i>
+                    <span class="name-text"></span>
+                </h5>
+                <div class="node-details">
+                    <span class="node-host"></span>
+                    <span class="node-status-badge"></span>
+                </div>
+            </div>
+            <div class="node-actions">
+                <button class="btn btn-sm btn-outline test-node-btn" title="Test Connection" aria-label="Test connection to node">
+                    <i class="fas fa-plug"></i>
+                </button>
+                <button class="btn btn-sm btn-outline edit-node-btn" title="Edit Node" aria-label="Edit node configuration">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn btn-sm btn-outline delete-node-btn" title="Delete Node" aria-label="Delete node">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="node-card-body">
+            <div class="node-metrics">
+                <div class="metric">
+                    <div class="metric-label">
+                        <i class="fas fa-microchip" aria-hidden="true"></i>
+                        CPU
+                    </div>
+                    <div class="metric-value">
+                        <div class="metric-bar">
+                            <div class="metric-progress cpu-progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <span class="cpu-usage">--</span>
+                    </div>
+                </div>
+                
+                <div class="metric">
+                    <div class="metric-label">
+                        <i class="fas fa-memory" aria-hidden="true"></i>
+                        Memory
+                    </div>
+                    <div class="metric-value">
+                        <div class="metric-bar">
+                            <div class="metric-progress memory-progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <span class="memory-usage">--</span>
+                    </div>
+                </div>
+                
+                <div class="metric">
+                    <div class="metric-label">
+                        <i class="fas fa-hdd" aria-hidden="true"></i>
+                        Disk
+                    </div>
+                    <div class="metric-value">
+                        <div class="metric-bar">
+                            <div class="metric-progress disk-progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <span class="disk-usage">--</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="node-connection-info">
+                <div class="connection-status">
+                    <i class="connection-icon fas fa-circle"></i>
+                    <span class="connection-text">Checking...</span>
+                </div>
+                <div class="vm-summary">
+                    <span class="vm-count">
+                        <i class="fas fa-desktop" aria-hidden="true"></i>
+                        <span class="vm-count-text">0</span> VMs
+                    </span>
+                    <span class="lxc-count">
+                        <i class="fas fa-cube" aria-hidden="true"></i>
+                        <span class="lxc-count-text">0</span> LXC
+                    </span>
+                </div>
+                <div class="last-updated">
+                    <small class="text-muted">
+                        Last updated: <span class="update-time">--</span>
+                    </small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="node-card-footer">
+            <button class="btn btn-sm btn-primary dashboard-link-btn" aria-label="Open Proxmox web dashboard">
+                <i class="fas fa-external-link-alt"></i>
+                Open Proxmox Dashboard
+            </button>
+            <button class="btn btn-sm btn-outline resources-btn" aria-label="View node resources">
+                <i class="fas fa-list"></i>
+                View Resources
+            </button>
+        </div>
+    </div>
+</template>

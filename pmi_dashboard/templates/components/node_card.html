@@ -1,0 +1,93 @@
+<!-- Proxmox Node Card Component -->
+<!-- This component will be used to display individual Proxmox nodes -->
+<!-- It's a placeholder for future implementation in subsequent tasks -->
+
+<div class="node-card" data-node-id="{{ node.id if node else 'placeholder' }}">
+    <div class="node-card-header">
+        <div class="node-info">
+            <h3 class="node-name">
+                <i class="fas fa-server" aria-hidden="true"></i>
+                {{ node.name if node else 'Proxmox Node' }}
+            </h3>
+            <div class="node-status">
+                <span class="status-indicator {{ 'online' if node and node.status == 'online' else 'offline' }}">
+                    <i class="fas {{ 'fa-circle' if node and node.status == 'online' else 'fa-times-circle' }}" aria-hidden="true"></i>
+                    {{ node.status.title() if node and node.status else 'Offline' }}
+                </span>
+            </div>
+        </div>
+        <div class="node-actions">
+            <button class="btn btn-link" title="Open Proxmox Dashboard" aria-label="Open Proxmox web dashboard">
+                <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+            </button>
+        </div>
+    </div>
+    
+    <div class="node-card-body">
+        <div class="node-metrics">
+            <div class="metric">
+                <div class="metric-label">CPU Usage</div>
+                <div class="metric-value">
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ node.cpu_usage if node else 0 }}%"></div>
+                    </div>
+                    <span class="metric-text">{{ node.cpu_usage if node else 0 }}%</span>
+                </div>
+            </div>
+            
+            <div class="metric">
+                <div class="metric-label">Memory Usage</div>
+                <div class="metric-value">
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ (node.memory_used / node.memory_total * 100) if node and node.memory_total else 0 }}%"></div>
+                    </div>
+                    <span class="metric-text">
+                        {{ "%.1f"|format((node.memory_used / node.memory_total * 100)) if node and node.memory_total else 0 }}%
+                    </span>
+                </div>
+            </div>
+            
+            <div class="metric">
+                <div class="metric-label">Disk Usage</div>
+                <div class="metric-value">
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ (node.disk_used / node.disk_total * 100) if node and node.disk_total else 0 }}%"></div>
+                    </div>
+                    <span class="metric-text">
+                        {{ "%.1f"|format((node.disk_used / node.disk_total * 100)) if node and node.disk_total else 0 }}%
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="node-card-footer">
+        <div class="vm-summary">
+            <span class="vm-count">
+                <i class="fas fa-desktop" aria-hidden="true"></i>
+                {{ node.vm_count if node else 0 }} VMs
+            </span>
+            <span class="lxc-count">
+                <i class="fas fa-cube" aria-hidden="true"></i>
+                {{ node.lxc_count if node else 0 }} LXC
+            </span>
+        </div>
+        <div class="last-updated">
+            <small class="text-muted">
+                Last updated: {{ node.last_updated.strftime('%H:%M:%S') if node and node.last_updated else 'Never' }}
+            </small>
+        </div>
+    </div>
+</div>
+
+<!-- 
+Node Card Features (for future implementation):
+- Real-time status indicators
+- CPU, Memory, and Disk usage metrics with progress bars
+- VM and LXC container counts
+- Direct link to Proxmox web dashboard
+- Last updated timestamp
+- Responsive design
+- Accessibility support with ARIA labels
+- Orange theme integration
+-->

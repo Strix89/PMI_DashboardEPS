@@ -1,0 +1,33 @@
+{
+  "nodes": [
+    {
+      "id": "example-node-1",
+      "name": "Production Proxmox",
+      "host": "192.168.1.100",
+      "port": 8006,
+      "api_token_id": "root@pam!monitoring",
+      "api_token_secret": "your-api-token-secret-here",
+      "ssl_verify": false,
+      "enabled": true,
+      "created_at": "2025-01-01T00:00:00Z",
+      "last_connected": null
+    },
+    {
+      "id": "example-node-2",
+      "name": "Development Proxmox",
+      "host": "proxmox-dev.local",
+      "port": 8006,
+      "api_token_id": "admin@pve!dashboard",
+      "api_token_secret": "another-api-token-secret",
+      "ssl_verify": true,
+      "enabled": true,
+      "created_at": "2025-01-01T00:00:00Z",
+      "last_connected": "2025-01-01T12:00:00Z"
+    }
+  ],
+  "metadata": {
+    "version": "1.0",
+    "created_at": "2025-01-01T00:00:00Z",
+    "last_modified": "2025-01-01T12:00:00Z"
+  }
+}

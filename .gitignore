@@ -33,6 +33,8 @@ output/*
 .kiro/
 network_discovery/results/*
 CruscottoProxmox.html
+pmi_dashboard/__pycache/
+pmi_dashboard/proxmox/__pycache__/
 
 # Application Generated Files
 logs/

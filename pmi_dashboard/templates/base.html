@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="DashboardEPs+ - Centralized IT Infrastructure Management">
+    <link rel="icon" type="image/png" href="{{url_for('static', filename='icona.png')}}">
+    <title>{% block title %}DashboardEPS+{% endblock %}</title>
+
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Main stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head %}{% endblock %}
+</head>
+
+<body>
+    <!-- Main container -->
+    <div class="app-container">
+        <!-- Header with navigation -->
+        <header class="app-header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <h1 class="app-title">
+                        <img src="{{ url_for('static', filename='icona.png') }}" alt="DashboardEPS+ Logo"
+                            class="app-logo">
+                        DashboardEPS+
+                    </h1>
+                </div>
+
+                <!-- Theme toggle button -->
+                <div class="header-controls">
+                    <button id="theme-toggle" class="theme-toggle-btn" aria-label="Toggle theme">
+                        <i class="fas fa-sun light-icon"></i>
+                        <i class="fas fa-moon dark-icon"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Navigation tabs -->
+            <nav class="main-navigation">
+                <div class="nav-container">
+                    <ul class="nav-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link" data-tab="health" role="tab" aria-controls="health-panel"
+                                aria-selected="false">
+                                <i class="fas fa-heartbeat"></i>
+                                <span class="nav-text">HEALTH</span>
+                                <span class="dev-badge">DEV</span>
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-tab="acronis" role="tab" aria-controls="acronis-panel"
+                                aria-selected="false">
+                                <i class="fas fa-shield-alt"></i>
+                                <span class="nav-text">ACRONIS</span>
+                                <span class="dev-badge">DEV</span>
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link active" data-tab="proxmox" role="tab" aria-controls="proxmox-panel"
+                                aria-selected="true">
+                                <i class="fas fa-server"></i>
+                                <span class="nav-text">PROXMOX</span>
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-tab="anomaly" role="tab" aria-controls="anomaly-panel"
+                                aria-selected="false">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <span class="nav-text">ANOMALY</span>
+                                <span class="dev-badge">DEV</span>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+        </header>
+
+        <!-- Main content area -->
+        <main class="app-main">
+            <div class="content-container">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <div class="footer-content">
+                <p>&copy; 2025 DashboardEPs+. All rights reserved.</p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Core JavaScript -->
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/proxmox.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/node-config.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/node-dashboard.js') }}"></script>
+
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

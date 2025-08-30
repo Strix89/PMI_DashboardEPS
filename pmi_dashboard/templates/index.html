@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block title %}DashboardEPs+ - IT Infrastructure Management{% endblock %}
+
+{% block content %}
+<!-- Tab content panels -->
+<div class="tab-content">
+    <!-- Health Tab Panel -->
+    <div id="health-panel" class="tab-panel" role="tabpanel" aria-labelledby="health-tab" hidden>
+        <div class="development-placeholder">
+            <div class="placeholder-content">
+                <i class="fas fa-heartbeat placeholder-icon"></i>
+                <h2>Health Monitoring</h2>
+                <p>This module is currently under development.</p>
+                <p class="text-muted">Health monitoring and system status features will be available in a future release.</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Acronis Tab Panel -->
+    <div id="acronis-panel" class="tab-panel" role="tabpanel" aria-labelledby="acronis-tab" hidden>
+        <div class="development-placeholder">
+            <div class="placeholder-content">
+                <i class="fas fa-shield-alt placeholder-icon"></i>
+                <h2>Acronis Backup Management</h2>
+                <p>This module is currently under development.</p>
+                <p class="text-muted">Acronis backup management and monitoring features will be available in a future release.</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Proxmox Tab Panel (Active by default) -->
+    <div id="proxmox-panel" class="tab-panel active" role="tabpanel" aria-labelledby="proxmox-tab">
+        <div class="proxmox-content">
+            <div class="section-header">
+                <h2>
+                    <i class="fas fa-server"></i>
+                    Proxmox Management
+                </h2>
+                <p class="section-description">
+                    Manage your Proxmox nodes, virtual machines, and LXC containers from this centralized dashboard.
+                </p>
+            </div>
+            
+            <!-- Node Configuration Interface -->
+            {% include 'components/node_config.html' %}
+        </div>
+    </div>
+    
+    <!-- Anomaly Tab Panel -->
+    <div id="anomaly-panel" class="tab-panel" role="tabpanel" aria-labelledby="anomaly-tab" hidden>
+        <div class="development-placeholder">
+            <div class="placeholder-content">
+                <i class="fas fa-exclamation-triangle placeholder-icon"></i>
+                <h2>Anomaly Detection</h2>
+                <p>This module is currently under development.</p>
+                <p class="text-muted">Anomaly detection and alerting features will be available in a future release.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+/* Tab content styles */
+.tab-content {
+    margin-top: 0;
+}
+
+.tab-panel {
+    display: none;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.tab-panel.active {
+    display: block;
+}
+
+.section-header {
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.section-header h2 {
+    color: var(--text-primary);
+    font-size: 1.75rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.section-header h2 i {
+    color: var(--primary-orange);
+    font-size: 1.5rem;
+}
+
+.section-description {
+    color: var(--text-secondary);
+    font-size: 1rem;
+    margin: 0;
+}
+
+/* Placeholder styles */
+.development-placeholder,
+.proxmox-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    background: var(--bg-card);
+    border: 2px dashed var(--border-color);
+    border-radius: 12px;
+    margin: 2rem 0;
+}
+
+.placeholder-content {
+    text-align: center;
+    max-width: 500px;
+    padding: 2rem;
+}
+
+.placeholder-icon {
+    font-size: 4rem;
+    color: var(--primary-orange);
+    margin-bottom: 1.5rem;
+    opacity: 0.7;
+}
+
+.placeholder-content h2,
+.placeholder-content h3 {
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+.placeholder-content h2 {
+    font-size: 1.5rem;
+}
+
+.placeholder-content h3 {
+    font-size: 1.25rem;
+}
+
+.placeholder-content p {
+    color: var(--text-secondary);
+    margin-bottom: 0.75rem;
+    line-height: 1.6;
+}
+
+.placeholder-content p:last-child {
+    margin-bottom: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .section-header h2 {
+        font-size: 1.5rem;
+    }
+    
+    .placeholder-icon {
+        font-size: 3rem;
+    }
+    
+    .placeholder-content {
+        padding: 1.5rem;
+    }
+    
+    .development-placeholder,
+    .proxmox-placeholder {
+        min-height: 300px;
+        margin: 1rem 0;
+    }
+}
+</style>
+
+<script>
+// Tab panel switching functionality
+document.addEventListener('tabchange', function(e) {
+    const tabName = e.detail.tab;
+    
+    // Hide all panels
+    document.querySelectorAll('.tab-panel').forEach(panel => {
+        panel.classList.remove('active');
+        panel.hidden = true;
+    });
+    
+    // Show active panel
+    const activePanel = document.getElementById(`${tabName}-panel`);
+    if (activePanel) {
+        activePanel.classList.add('active');
+        activePanel.hidden = false;
+    }
+});
+
+// Initialize with Proxmox tab active
+document.addEventListener('DOMContentLoaded', function() {
+    // Ensure Proxmox panel is visible by default
+    const proxmoxPanel = document.getElementById('proxmox-panel');
+    if (proxmoxPanel) {
+        proxmoxPanel.classList.add('active');
+        proxmoxPanel.hidden = false;
+    }
+});
+</script>
+{% endblock %}
