@@ -1,5 +1,45 @@
 """
-Configuration management for PMI Dashboard
+Configuration Management for PMI Dashboard
+
+This module provides comprehensive configuration management for the PMI Dashboard
+application, including environment variable handling, validation, and Proxmox
+node configuration management through JSON files.
+
+The module implements a two-tier configuration system:
+1. Environment Variables (.env file) - Application settings and defaults
+2. JSON Configuration Files - Dynamic data like Proxmox node connections
+
+Key Components:
+- Config: Main configuration class with validation
+- ProxmoxConfigManager: JSON-based node configuration management
+- ConfigurationError: Custom exception for configuration issues
+
+Features:
+- Environment variable loading with python-dotenv
+- Configuration validation with detailed error messages
+- JSON file management with atomic writes
+- Node configuration CRUD operations
+- Hostname and IP address validation
+- Automatic directory and file creation
+- Metadata tracking for configuration changes
+
+Example:
+    Basic configuration access:
+        from config import Config
+        print(f"Server: {Config.HOST}:{Config.PORT}")
+    
+    Proxmox node management:
+        manager = ProxmoxConfigManager()
+        nodes = manager.get_all_nodes()
+        node_id = manager.add_node({
+            "name": "Production",
+            "host": "192.168.1.100",
+            "api_token_id": "root@pam!monitoring",
+            "api_token_secret": "secret"
+        })
+
+Author: PMI Dashboard Team
+Version: 1.0.0
 """
 import os
 import json
@@ -115,7 +155,57 @@ class Config:
 
 
 class ProxmoxConfigManager:
-    """Manager for Proxmox node configuration stored in JSON files."""
+    """
+    Manager for Proxmox node configuration stored in JSON files.
+    
+    This class provides a complete interface for managing Proxmox node
+    configurations using JSON file storage. It handles CRUD operations,
+    validation, and maintains metadata about configuration changes.
+    
+    Features:
+    - Automatic file creation and structure initialization
+    - JSON schema validation for node configurations
+    - Atomic file operations to prevent corruption
+    - Hostname and IP address validation
+    - Unique ID generation and management
+    - Metadata tracking (creation time, last modified)
+    - Error handling with detailed messages
+    
+    The configuration file structure:
+    {
+        "nodes": [
+            {
+                "id": "unique-uuid",
+                "name": "Display Name",
+                "host": "192.168.1.100",
+                "port": 8006,
+                "api_token_id": "root@pam!token",
+                "api_token_secret": "secret",
+                "ssl_verify": false,
+                "enabled": true,
+                "created_at": "2025-01-31T12:00:00Z",
+                "last_connected": null
+            }
+        ],
+        "metadata": {
+            "version": "1.0",
+            "created_at": "2025-01-31T12:00:00Z",
+            "last_modified": "2025-01-31T12:00:00Z"
+        }
+    }
+    
+    Example:
+        >>> manager = ProxmoxConfigManager()
+        >>> nodes = manager.get_all_nodes()
+        >>> node_id = manager.add_node({
+        ...     "name": "Production Server",
+        ...     "host": "192.168.1.100",
+        ...     "api_token_id": "root@pam!monitoring",
+        ...     "api_token_secret": "your-secret-here"
+        ... })
+        >>> manager.update_node(node_id, {"name": "Updated Name"})
+        >>> manager.remove_node(node_id)
+    """
     
     def __init__(self, config_file_path: Optional[str] = None):
         """

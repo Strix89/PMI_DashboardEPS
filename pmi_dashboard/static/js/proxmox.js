@@ -12,16 +12,17 @@ class ProxmoxAPI {
     }
 
     /**
-     * Make an HTTP request to the API
+     * Make an HTTP request to the API with enhanced error handling
      * @param {string} method - HTTP method (GET, POST, PUT, DELETE)
      * @param {string} endpoint - API endpoint
      * @param {Object} data - Request data
      * @param {number} timeout - Request timeout in milliseconds
+     * @param {number} retries - Number of retry attempts
      * @returns {Promise} Response promise
      */
-    async makeRequest(method, endpoint, data = null, timeout = this.defaultTimeout) {
+    async makeRequest(method, endpoint, data = null, timeout = this.defaultTimeout, retries = 0) {
         const url = `${this.baseUrl}${endpoint}`;
-        
+
         const options = {
             method: method,
             headers: {
@@ -36,29 +37,87 @@ class ProxmoxAPI {
 
         try {
             const response = await fetch(url, options);
-            const result = await response.json();
+            
+            // Handle different response types
+            let result;
+            const contentType = response.headers.get('content-type');
+            
+            if (contentType && contentType.includes('application/json')) {
+                result = await response.json();
+            } else {
+                result = { message: await response.text() };
+            }
 
             if (!response.ok) {
-                throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
+                const error = new Error(result.error || result.message || `HTTP ${response.status}: ${response.statusText}`);
+                error.status = response.status;
+                error.response = result;
+                throw error;
             }
 
             return result;
         } catch (error) {
+            // Handle specific error types
             if (error.name === 'AbortError') {
-                throw new Error('Request timeout');
+                const timeoutError = new Error('Request timeout - the server took too long to respond');
+                timeoutError.code = 'TIMEOUT';
+                throw timeoutError;
             }
+            
+            if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                const networkError = new Error('Network error - unable to connect to server');
+                networkError.code = 'NETWORK_ERROR';
+                throw networkError;
+            }
+
+            // Add error context
+            error.endpoint = endpoint;
+            error.method = method;
+            
+            // Retry logic for certain errors
+            if (retries > 0 && this.shouldRetry(error)) {
+                console.warn(`Request failed, retrying... (${retries} attempts left)`, error.message);
+                await this.delay(1000 * (3 - retries)); // Exponential backoff
+                return this.makeRequest(method, endpoint, data, timeout, retries - 1);
+            }
+            
             throw error;
         }
+    }
+
+    /**
+     * Determine if a request should be retried
+     * @param {Error} error - Error object
+     * @returns {boolean} True if should retry
+     */
+    shouldRetry(error) {
+        // Retry on network errors, timeouts, and 5xx server errors
+        return (
+            error.code === 'NETWORK_ERROR' ||
+            error.code === 'TIMEOUT' ||
+            (error.status >= 500 && error.status < 600)
+        );
+    }
+
+    /**
+     * Delay utility for retry logic
+     * @param {number} ms - Milliseconds to delay
+     * @returns {Promise} Delay promise
+     */
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     // Node Management Methods
 
     /**
      * Get all configured Proxmox nodes with status
+     * @param {boolean} withRetry - Enable retry on failure
      * @returns {Promise} Nodes data
      */
-    async getNodes() {
-        return this.makeRequest('GET', '/nodes');
+    async getNodes(withRetry = true) {
+        const retries = withRetry ? 2 : 0;
+        return this.makeRequest('GET', '/nodes', null, this.defaultTimeout, retries);
     }
 
     /**
@@ -112,10 +171,12 @@ class ProxmoxAPI {
     /**
      * Get all resources (VMs and containers) for a node
      * @param {string} nodeId - Node ID
+     * @param {boolean} withRetry - Enable retry on failure
      * @returns {Promise} Resources data
      */
-    async getNodeResources(nodeId) {
-        return this.makeRequest('GET', `/nodes/${nodeId}/resources`);
+    async getNodeResources(nodeId, withRetry = true) {
+        const retries = withRetry ? 2 : 0;
+        return this.makeRequest('GET', `/nodes/${nodeId}/resources`, null, this.defaultTimeout, retries);
     }
 
     /**
@@ -207,18 +268,18 @@ class ProxmoxAPI {
  */
 function formatBytes(bytes) {
     if (bytes === 0) return '0 B';
-    
+
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     let unitIndex = 0;
     let value = bytes;
-    
+
     while (value >= 1024 && unitIndex < units.length - 1) {
         value /= 1024;
         unitIndex++;
     }
-    
-    return unitIndex === 0 ? 
-        `${Math.round(value)} ${units[unitIndex]}` : 
+
+    return unitIndex === 0 ?
+        `${Math.round(value)} ${units[unitIndex]}` :
         `${value.toFixed(1)} ${units[unitIndex]}`;
 }
 
@@ -229,16 +290,16 @@ function formatBytes(bytes) {
  */
 function formatUptime(seconds) {
     if (seconds === 0) return '0s';
-    
+
     const days = Math.floor(seconds / 86400);
     const hours = Math.floor((seconds % 86400) / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
-    
+
     const parts = [];
     if (days > 0) parts.push(`${days}d`);
     if (hours > 0) parts.push(`${hours}h`);
     if (minutes > 0) parts.push(`${minutes}m`);
-    
+
     return parts.length > 0 ? parts.join(' ') : `${seconds}s`;
 }
 
@@ -269,7 +330,7 @@ function getStatusColor(status) {
         'offline': 'text-danger',
         'connected': 'text-success'
     };
-    
+
     return statusColors[status] || 'text-muted';
 }
 
@@ -295,19 +356,26 @@ function showNotification(message, type = 'info', duration = 5000) {
     // This would integrate with the notification system
     // For now, just log to console
     console.log(`[${type.toUpperCase()}] ${message}`);
-    
+
     // In a real implementation, this would create and show a toast notification
     // Example implementation would create a toast element and add it to the DOM
 }
 
 /**
- * Handle API errors with user-friendly messages
+ * Handle API errors with enhanced error handling and recovery suggestions
  * @param {Error} error - Error object
  * @param {string} operation - Operation that failed
+ * @param {Function} retryCallback - Optional retry callback
  */
-function handleApiError(error, operation = 'operation') {
-    let message = `Failed to ${operation}`;
+function handleApiError(error, operation = 'operation', retryCallback = null) {
+    // Use the enhanced error handler from notifications.js
+    if (typeof ErrorHandler !== 'undefined') {
+        return ErrorHandler.handleApiError(error, operation, retryCallback);
+    }
     
+    // Fallback to basic error handling if ErrorHandler is not available
+    let message = `Failed to ${operation}`;
+
     if (error.message) {
         if (error.message.includes('timeout')) {
             message += ': Request timeout. Please check your connection.';
@@ -319,9 +387,14 @@ function handleApiError(error, operation = 'operation') {
             message += `: ${error.message}`;
         }
     }
-    
-    showNotification(message, 'error');
-    console.error(`API Error [${operation}]:`, error);
+
+    if (typeof showError !== 'undefined') {
+        return showError(message, { retryCallback });
+    } else if (typeof showNotification !== 'undefined') {
+        return showNotification(message, 'error');
+    } else {
+        console.error(`API Error [${operation}]:`, error);
+    }
 }
 
 // Create global instance
@@ -340,4 +413,208 @@ if (typeof module !== 'undefined' && module.exports) {
         showNotification,
         handleApiError
     };
+}
+// Integration with Resource Manager is now handled by metrics-init.js
+
+/**
+ * Enhanced notification system with toast-style notifications
+ * @param {string} message - Message text
+ * @param {string} type - Message type (success, error, warning, info)
+ * @param {number} duration - Display duration in milliseconds
+ */
+function showNotification(message, type = 'info', duration = 5000) {
+    // Create notification container if it doesn't exist
+    let container = document.getElementById('notification-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'notification-container';
+        container.className = 'notification-container';
+        document.body.appendChild(container);
+    }
+
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+
+    // Set icon based on type
+    const icons = {
+        success: 'fa-check-circle',
+        error: 'fa-exclamation-circle',
+        warning: 'fa-exclamation-triangle',
+        info: 'fa-info-circle'
+    };
+
+    notification.innerHTML = `
+        <div class="notification-content">
+            <i class="fas ${icons[type] || icons.info}"></i>
+            <span class="notification-message">${message}</span>
+        </div>
+        <button class="notification-close" aria-label="Close notification">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+
+    // Add to container
+    container.appendChild(notification);
+
+    // Animate in
+    setTimeout(() => {
+        notification.classList.add('notification-show');
+    }, 10);
+
+    // Set up close button
+    const closeBtn = notification.querySelector('.notification-close');
+    closeBtn.addEventListener('click', () => {
+        removeNotification(notification);
+    });
+
+    // Auto-remove after duration
+    if (duration > 0) {
+        setTimeout(() => {
+            removeNotification(notification);
+        }, duration);
+    }
+
+    return notification;
+}
+
+/**
+ * Remove a notification with animation
+ * @param {HTMLElement} notification - Notification element to remove
+ */
+function removeNotification(notification) {
+    if (!notification || !notification.parentNode) return;
+
+    notification.classList.add('notification-hide');
+
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    }, 300);
+}
+
+// Add notification styles to the page
+if (!document.getElementById('notification-styles')) {
+    const style = document.createElement('style');
+    style.id = 'notification-styles';
+    style.textContent = `
+        .notification-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            max-width: 400px;
+            pointer-events: none;
+        }
+
+        .notification {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 4px 16px var(--shadow-medium);
+            margin-bottom: 10px;
+            padding: 16px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            transform: translateX(100%);
+            opacity: 0;
+            transition: all 0.3s ease;
+            pointer-events: auto;
+            max-width: 100%;
+            word-wrap: break-word;
+        }
+
+        .notification-show {
+            transform: translateX(0);
+            opacity: 1;
+        }
+
+        .notification-hide {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+
+        .notification-content {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            flex: 1;
+        }
+
+        .notification-content i {
+            font-size: 16px;
+            margin-top: 2px;
+            flex-shrink: 0;
+        }
+
+        .notification-message {
+            color: var(--text-primary);
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .notification-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 0;
+            font-size: 14px;
+            flex-shrink: 0;
+            transition: color 0.2s ease;
+        }
+
+        .notification-close:hover {
+            color: var(--text-primary);
+        }
+
+        .notification-success {
+            border-left: 4px solid var(--success-color);
+        }
+
+        .notification-success .notification-content i {
+            color: var(--success-color);
+        }
+
+        .notification-error {
+            border-left: 4px solid var(--error-color);
+        }
+
+        .notification-error .notification-content i {
+            color: var(--error-color);
+        }
+
+        .notification-warning {
+            border-left: 4px solid var(--warning-color);
+        }
+
+        .notification-warning .notification-content i {
+            color: var(--warning-color);
+        }
+
+        .notification-info {
+            border-left: 4px solid var(--info-color);
+        }
+
+        .notification-info .notification-content i {
+            color: var(--info-color);
+        }
+
+        @media (max-width: 768px) {
+            .notification-container {
+                top: 10px;
+                right: 10px;
+                left: 10px;
+                max-width: none;
+            }
+
+            .notification {
+                margin-bottom: 8px;
+                padding: 12px;
+            }
+        }
+    `;
+    document.head.appendChild(style);
 }

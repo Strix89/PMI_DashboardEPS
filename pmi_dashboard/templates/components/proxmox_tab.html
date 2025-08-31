@@ -1,0 +1,262 @@
+<!-- Proxmox Tab Content -->
+<div class="proxmox-content">
+    <div class="section-header">
+        <h2>
+            <i class="fas fa-server"></i>
+            Proxmox Management
+        </h2>
+        <p class="section-description">
+            Manage your Proxmox nodes, virtual machines, and LXC containers from this centralized dashboard.
+        </p>
+    </div>
+    
+    <!-- Node Configuration Interface -->
+    {% include 'components/node_config.html' %}
+    
+    <!-- VM/LXC Container Management Interface -->
+    <div id="resources-section" class="resources-section" style="display: none;">
+        <div class="resources-header">
+            <div class="resources-title">
+                <h3>
+                    <i class="fas fa-list"></i>
+                    <span id="resources-node-name">Node Resources</span>
+                </h3>
+                <p class="resources-description">
+                    Manage virtual machines and LXC containers on this node.
+                </p>
+            </div>
+            <div class="resources-actions">
+                <button id="back-to-nodes-btn" class="btn btn-outline">
+                    <i class="fas fa-arrow-left"></i>
+                    Back to Nodes
+                </button>
+                <button id="refresh-resources-btn" class="btn btn-outline btn-sm">
+                    <i class="fas fa-sync-alt"></i>
+                    Refresh
+                </button>
+                <div class="auto-refresh-resources-toggle">
+                    <label class="form-check">
+                        <input type="checkbox" id="auto-refresh-resources-toggle" class="form-check-input" checked>
+                        <span class="form-check-label">Auto-refresh</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Resources Container -->
+        <div id="resources-container" class="resources-container">
+            <!-- VMs Section -->
+            <div class="resource-type-section">
+                <div class="resource-type-header">
+                    <h4>
+                        <i class="fas fa-desktop"></i>
+                        Virtual Machines
+                        <span id="vm-count-badge" class="count-badge">0</span>
+                    </h4>
+                </div>
+                <div id="vms-container" class="resources-grid">
+                    <!-- VM cards will be loaded here -->
+                </div>
+            </div>
+            
+            <!-- LXC Containers Section -->
+            <div class="resource-type-section">
+                <div class="resource-type-header">
+                    <h4>
+                        <i class="fas fa-cube"></i>
+                        LXC Containers
+                        <span id="lxc-count-badge" class="count-badge">0</span>
+                    </h4>
+                </div>
+                <div id="lxc-container" class="resources-grid">
+                    <!-- LXC cards will be loaded here -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Loading State -->
+        <div id="resources-loading" class="loading-placeholder">
+            <i class="fas fa-spinner fa-spin"></i>
+            Loading resources...
+        </div>
+        
+        <!-- Empty State -->
+        <div id="resources-empty-state" class="empty-state" style="display: none;">
+            <div class="empty-state-content">
+                <i class="fas fa-server empty-state-icon"></i>
+                <h5>No Resources Found</h5>
+                <p>This node doesn't have any VMs or LXC containers, or they couldn't be loaded.</p>
+                <button id="retry-resources-btn" class="btn btn-primary">
+                    <i class="fas fa-sync-alt"></i>
+                    Retry Loading
+                </button>
+            </div>
+        </div>
+        
+        <!-- Operation History Section -->
+        {% include 'components/operation_history.html' %}
+    </div>
+</div>
+
+<!-- Resource Card Template -->
+<template id="resource-card-template">
+    <div class="resource-card" data-vmid="" data-resource-type="">
+        <div class="resource-card-header">
+            <div class="resource-info">
+                <h5 class="resource-name">
+                    <i class="resource-icon fas fa-desktop" aria-hidden="true"></i>
+                    <span class="name-text"></span>
+                </h5>
+                <div class="resource-details">
+                    <span class="resource-id"></span>
+                    <span class="resource-status-badge"></span>
+                </div>
+            </div>
+            <div class="resource-actions">
+                <div class="btn-group" role="group" aria-label="Resource controls">
+                    <button class="btn btn-sm btn-success start-btn" title="Start" aria-label="Start resource" disabled>
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <button class="btn btn-sm btn-warning stop-btn" title="Stop" aria-label="Stop resource" disabled>
+                        <i class="fas fa-stop"></i>
+                    </button>
+                    <button class="btn btn-sm btn-info restart-btn" title="Restart" aria-label="Restart resource" disabled>
+                        <i class="fas fa-redo"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="resource-card-body">
+            <div class="resource-metrics">
+                <div class="metric">
+                    <div class="metric-label">
+                        <i class="fas fa-microchip" aria-hidden="true"></i>
+                        CPU
+                    </div>
+                    <div class="metric-value">
+                        <div class="metric-bar">
+                            <div class="metric-progress cpu-progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <span class="cpu-usage">--</span>
+                    </div>
+                </div>
+                
+                <div class="metric">
+                    <div class="metric-label">
+                        <i class="fas fa-memory" aria-hidden="true"></i>
+                        Memory
+                    </div>
+                    <div class="metric-value">
+                        <div class="metric-bar">
+                            <div class="metric-progress memory-progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <span class="memory-usage">--</span>
+                    </div>
+                </div>
+                
+                <div class="metric">
+                    <div class="metric-label">
+                        <i class="fas fa-hdd" aria-hidden="true"></i>
+                        Disk
+                    </div>
+                    <div class="metric-value">
+                        <div class="metric-bar">
+                            <div class="metric-progress disk-progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <span class="disk-usage">--</span>
+                    </div>
+                </div>
+                
+                <div class="metric">
+                    <div class="metric-label">
+                        <i class="fas fa-network-wired" aria-hidden="true"></i>
+                        Network
+                    </div>
+                    <div class="metric-value">
+                        <div class="network-stats">
+                            <div class="network-stat">
+                                <i class="fas fa-arrow-down text-success"></i>
+                                <span class="network-in">--</span>
+                            </div>
+                            <div class="network-stat">
+                                <i class="fas fa-arrow-up text-info"></i>
+                                <span class="network-out">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="resource-status-info">
+                <div class="status-details">
+                    <div class="status-item">
+                        <span class="status-label">Status:</span>
+                        <span class="status-value resource-status">--</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Uptime:</span>
+                        <span class="status-value resource-uptime">--</span>
+                    </div>
+                </div>
+                <div class="last-updated">
+                    <small class="text-muted">
+                        Last updated: <span class="update-time">--</span>
+                    </small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Loading Overlay -->
+        <div class="resource-loading-overlay" style="display: none;">
+            <div class="loading-content">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span class="loading-text">Processing...</span>
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- Operation Confirmation Modal -->
+<div id="operation-modal" class="modal" style="display: none;">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Operation</h5>
+                <button type="button" class="btn-close" aria-label="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="operation-details">
+                    <div class="operation-icon">
+                        <i class="fas fa-question-circle"></i>
+                    </div>
+                    <div class="operation-text">
+                        <p class="operation-message">Are you sure you want to perform this operation?</p>
+                        <div class="operation-info">
+                            <strong>Resource:</strong> <span id="modal-resource-name">--</span><br>
+                            <strong>Operation:</strong> <span id="modal-operation">--</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="force-option" style="display: none;">
+                    <label class="form-check">
+                        <input type="checkbox" id="force-operation" class="form-check-input">
+                        <span class="form-check-label">Force operation (immediate shutdown/restart)</span>
+                    </label>
+                    <div class="form-help">
+                        Warning: Force operations may cause data loss. Use only if normal operation fails.
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline cancel-operation">Cancel</button>
+                <button type="button" class="btn btn-primary confirm-operation">
+                    <span class="btn-text">Confirm</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

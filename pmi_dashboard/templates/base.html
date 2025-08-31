@@ -3,9 +3,36 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
     <meta name="description" content="DashboardEPs+ - Centralized IT Infrastructure Management">
+    
+    <!-- Mobile optimization meta tags -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="DashboardEPS+">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="msapplication-tap-highlight" content="no">
+    
+    <!-- Theme color for mobile browsers -->
+    <meta name="theme-color" content="#1a1a1a">
+    <meta name="msapplication-navbutton-color" content="#1a1a1a">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <!-- Favicon and app icons -->
     <link rel="icon" type="image/png" href="{{url_for('static', filename='icona.png')}}">
+    <link rel="apple-touch-icon" href="{{url_for('static', filename='icona.png')}}">
+    <link rel="apple-touch-icon" sizes="152x152" href="{{url_for('static', filename='icona.png')}}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{url_for('static', filename='icona.png')}}">
+    <link rel="apple-touch-icon" sizes="167x167" href="{{url_for('static', filename='icona.png')}}">
+    
+    <!-- PWA manifest for mobile app-like experience -->
+    <link rel="manifest" href="{{url_for('static', filename='manifest.json')}}">
+    
+    <!-- Preconnect to external resources -->
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+    
     <title>{% block title %}DashboardEPS+{% endblock %}</title>
 
     <!-- Font Awesome for icons -->
@@ -13,6 +40,11 @@
 
     <!-- Main stylesheet -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    <!-- Preload critical resources for mobile -->
+    <link rel="preload" href="{{ url_for('static', filename='js/theme.js') }}" as="script">
+    <link rel="preload" href="{{ url_for('static', filename='js/main.js') }}" as="script">
+    
     {% block head %}{% endblock %}
 </head>
 
@@ -96,11 +128,20 @@
 
     <!-- Core JavaScript -->
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/error-handler.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     <script src="{{ url_for('static', filename='js/proxmox.js') }}"></script>
     <script src="{{ url_for('static', filename='js/node-config.js') }}"></script>
     <script src="{{ url_for('static', filename='js/node-dashboard.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/resources.js') }}"></script>
+    
+    <!-- Real-time Metrics System -->
+    <script src="{{ url_for('static', filename='js/metrics-visualizer.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/metrics-monitor.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/resource-manager.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/operation-history.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/metrics-init.js') }}"></script>
 
     {% block scripts %}{% endblock %}
 </body>

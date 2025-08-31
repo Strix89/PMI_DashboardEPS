@@ -1,0 +1,223 @@
+<!-- Operation History Component -->
+<div class="operation-history-section">
+    <div class="history-header">
+        <div class="history-title">
+            <h4>
+                <i class="fas fa-history"></i>
+                Operation History
+            </h4>
+            <p class="history-description">
+                Track all operations performed on this node and its resources.
+            </p>
+        </div>
+        <div class="history-actions">
+            <button id="refresh-history-btn" class="btn btn-outline btn-sm">
+                <i class="fas fa-sync-alt"></i>
+                Refresh
+            </button>
+            <button id="clear-filters-btn" class="btn btn-outline btn-sm">
+                <i class="fas fa-times"></i>
+                Clear Filters
+            </button>
+        </div>
+    </div>
+    
+    <!-- History Filters -->
+    <div class="history-filters">
+        <div class="filter-row">
+            <div class="filter-group">
+                <label for="resource-type-filter">Resource Type:</label>
+                <select id="resource-type-filter" class="form-select">
+                    <option value="">All Types</option>
+                    <option value="node">Node</option>
+                    <option value="vm">Virtual Machine</option>
+                    <option value="lxc">LXC Container</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="operation-type-filter">Operation:</label>
+                <select id="operation-type-filter" class="form-select">
+                    <option value="">All Operations</option>
+                    <option value="start">Start</option>
+                    <option value="stop">Stop</option>
+                    <option value="restart">Restart</option>
+                    <option value="backup">Backup</option>
+                    <option value="restore">Restore</option>
+                    <option value="migrate">Migrate</option>
+                    <option value="clone">Clone</option>
+                    <option value="delete">Delete</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="status-filter">Status:</label>
+                <select id="status-filter" class="form-select">
+                    <option value="">All Status</option>
+                    <option value="success">Success</option>
+                    <option value="failed">Failed</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="pending">Pending</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="history-limit">Show:</label>
+                <select id="history-limit" class="form-select">
+                    <option value="25">25 entries</option>
+                    <option value="50" selected>50 entries</option>
+                    <option value="100">100 entries</option>
+                    <option value="200">200 entries</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    
+    <!-- History Table -->
+    <div class="history-table-container">
+        <table id="history-table" class="history-table">
+            <thead>
+                <tr>
+                    <th class="col-timestamp">
+                        <i class="fas fa-clock"></i>
+                        Timestamp
+                    </th>
+                    <th class="col-resource">
+                        <i class="fas fa-server"></i>
+                        Resource
+                    </th>
+                    <th class="col-operation">
+                        <i class="fas fa-cog"></i>
+                        Operation
+                    </th>
+                    <th class="col-status">
+                        <i class="fas fa-info-circle"></i>
+                        Status
+                    </th>
+                    <th class="col-duration">
+                        <i class="fas fa-stopwatch"></i>
+                        Duration
+                    </th>
+                    <th class="col-details">
+                        <i class="fas fa-list"></i>
+                        Details
+                    </th>
+                </tr>
+            </thead>
+            <tbody id="history-table-body">
+                <!-- History entries will be loaded here -->
+            </tbody>
+        </table>
+        
+        <!-- Loading State -->
+        <div id="history-loading" class="loading-placeholder">
+            <i class="fas fa-spinner fa-spin"></i>
+            Loading operation history...
+        </div>
+        
+        <!-- Empty State -->
+        <div id="history-empty-state" class="empty-state" style="display: none;">
+            <div class="empty-state-content">
+                <i class="fas fa-history empty-state-icon"></i>
+                <h5>No Operations Found</h5>
+                <p>No operations match the current filters, or no operations have been performed yet.</p>
+            </div>
+        </div>
+        
+        <!-- Error State -->
+        <div id="history-error-state" class="error-state" style="display: none;">
+            <div class="error-state-content">
+                <i class="fas fa-exclamation-triangle error-state-icon"></i>
+                <h5>Failed to Load History</h5>
+                <p id="history-error-message">An error occurred while loading the operation history.</p>
+                <button id="retry-history-btn" class="btn btn-primary">
+                    <i class="fas fa-sync-alt"></i>
+                    Retry
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Pagination -->
+    <div class="history-pagination">
+        <div class="pagination-info">
+            <span id="pagination-info-text">Showing 0 - 0 of 0 operations</span>
+        </div>
+        <div class="pagination-controls">
+            <button id="prev-page-btn" class="btn btn-outline btn-sm" disabled>
+                <i class="fas fa-chevron-left"></i>
+                Previous
+            </button>
+            <span class="page-info">
+                Page <span id="current-page">1</span> of <span id="total-pages">1</span>
+            </span>
+            <button id="next-page-btn" class="btn btn-outline btn-sm" disabled>
+                Next
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Operation Details Modal -->
+<div id="operation-details-modal" class="modal" style="display: none;">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Operation Details</h5>
+                <button type="button" class="btn-close" aria-label="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="operation-details-content">
+                    <div class="detail-row">
+                        <strong>Operation ID:</strong>
+                        <span id="detail-operation-id">--</span>
+                    </div>
+                    <div class="detail-row">
+                        <strong>Timestamp:</strong>
+                        <span id="detail-timestamp">--</span>
+                    </div>
+                    <div class="detail-row">
+                        <strong>Node:</strong>
+                        <span id="detail-node">--</span>
+                    </div>
+                    <div class="detail-row">
+                        <strong>Resource:</strong>
+                        <span id="detail-resource">--</span>
+                    </div>
+                    <div class="detail-row">
+                        <strong>Operation:</strong>
+                        <span id="detail-operation">--</span>
+                    </div>
+                    <div class="detail-row">
+                        <strong>Status:</strong>
+                        <span id="detail-status">--</span>
+                    </div>
+                    <div class="detail-row">
+                        <strong>Duration:</strong>
+                        <span id="detail-duration">--</span>
+                    </div>
+                    <div class="detail-row" id="detail-user-row" style="display: none;">
+                        <strong>User:</strong>
+                        <span id="detail-user">--</span>
+                    </div>
+                    <div class="detail-row" id="detail-error-row" style="display: none;">
+                        <strong>Error Message:</strong>
+                        <div id="detail-error-message" class="error-message">--</div>
+                    </div>
+                    <div class="detail-row" id="detail-details-row" style="display: none;">
+                        <strong>Additional Details:</strong>
+                        <pre id="detail-additional-details" class="details-json">--</pre>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline close-modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>

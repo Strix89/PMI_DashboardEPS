@@ -1,8 +1,22 @@
 {
-  "nodes": [],
+  "nodes": [
+    {
+      "name": "Nodo1",
+      "host": "10.10.10.85",
+      "port": 8006,
+      "api_token_id": "api_1@pam!API_KEY",
+      "api_token_secret": "131af001-b5bb-4784-93a0-da279adcb56d",
+      "ssl_verify": false,
+      "timeout": 30,
+      "enabled": true,
+      "id": "c2b6c79f-f003-4a87-b0ee-15f8f47fc8c8",
+      "created_at": "2025-08-31T10:20:34.273473Z",
+      "last_connected": null
+    }
+  ],
   "metadata": {
     "version": "1.0",
     "created_at": "2025-08-30T20:28:51.059460Z",
-    "last_modified": "2025-08-30T20:28:51.059460Z"
+    "last_modified": "2025-08-31T10:20:34.273513Z"
   }
 }

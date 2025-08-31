@@ -39,15 +39,16 @@ logger = logging.getLogger(__name__)
 proxmox_bp = Blueprint('proxmox', __name__, url_prefix='/api/proxmox')
 
 
-def create_error_response(message: str, status_code: int = 400, details: Dict = None, error_code: str = None):
+def create_error_response(message: str, status_code: int = 400, details: Dict = None, error_code: str = None, help_text: str = None):
     """
-    Create standardized error response for Flask.
+    Create standardized error response for Flask with enhanced error handling.
     
     Args:
         message: Error message
         status_code: HTTP status code
         details: Additional error details
         error_code: Specific error code for client handling
+        help_text: Custom help text for recovery
         
     Returns:
         Flask response tuple (jsonify(response), status_code)
@@ -55,7 +56,8 @@ def create_error_response(message: str, status_code: int = 400, details: Dict = 
     response = {
         'success': False,
         'error': message,
-        'timestamp': datetime.utcnow().isoformat() + 'Z'
+        'timestamp': datetime.utcnow().isoformat() + 'Z',
+        'request_id': str(uuid.uuid4())[:8]  # Short request ID for tracking
     }
     
     if error_code:
@@ -65,16 +67,70 @@ def create_error_response(message: str, status_code: int = 400, details: Dict = 
         response['details'] = details
     
     # Add helpful information for common errors
-    if status_code == 401:
-        response['help'] = "Check your API token credentials"
-    elif status_code == 403:
-        response['help'] = "Insufficient permissions for this operation"
-    elif status_code == 404:
-        response['help'] = "The requested resource was not found"
-    elif status_code == 503:
-        response['help'] = "Service temporarily unavailable, check network connectivity"
+    help_messages = {
+        400: "Check your request parameters and try again",
+        401: "Check your API token credentials and ensure they are valid",
+        403: "Your API token may not have sufficient permissions for this operation",
+        404: "The requested resource was not found or may have been deleted",
+        408: "Request timeout - the operation took too long to complete",
+        409: "Resource conflict - the operation cannot be completed in the current state",
+        422: "Invalid request data - please check the required fields",
+        429: "Too many requests - please wait before trying again",
+        500: "Internal server error - please try again later",
+        502: "Bad gateway - the Proxmox server may be temporarily unavailable",
+        503: "Service temporarily unavailable - check network connectivity and server status",
+        504: "Gateway timeout - the Proxmox server took too long to respond"
+    }
     
-    logger.error(f"API Error ({status_code}): {message}")
+    response['help'] = help_text or help_messages.get(status_code, "Please try again or contact support if the problem persists")
+    
+    # Add recovery suggestions based on error type
+    recovery_suggestions = []
+    
+    if status_code == 401:
+        recovery_suggestions.extend([
+            "Verify your API token ID and secret are correct",
+            "Check if the API token has expired",
+            "Ensure the token has the required permissions"
+        ])
+    elif status_code == 403:
+        recovery_suggestions.extend([
+            "Check the API token permissions in Proxmox",
+            "Verify the token is assigned to the correct user",
+            "Ensure the user has the necessary privileges"
+        ])
+    elif status_code == 404:
+        recovery_suggestions.extend([
+            "Verify the resource ID is correct",
+            "Check if the resource still exists",
+            "Refresh the page to get updated information"
+        ])
+    elif status_code == 503:
+        recovery_suggestions.extend([
+            "Check if the Proxmox server is running",
+            "Verify network connectivity to the server",
+            "Try again in a few moments"
+        ])
+    elif status_code >= 500:
+        recovery_suggestions.extend([
+            "Try the operation again in a few moments",
+            "Check the Proxmox server logs for more information",
+            "Contact your system administrator if the problem persists"
+        ])
+    
+    if recovery_suggestions:
+        response['recovery_suggestions'] = recovery_suggestions
+    
+    # Log error with context
+    log_context = {
+        'status_code': status_code,
+        'error_code': error_code,
+        'request_id': response['request_id'],
+        'details': details
+    }
+    
+    logger.error(f"API Error ({status_code}): {message}", extra=log_context)
+    
     return jsonify(response), status_code
 
 
@@ -216,6 +272,21 @@ def get_nodes():
                     node.is_connected = False
                     node.connection_error = message
                     node.status = 'offline'
+                    
+                    # Clear metrics for disconnected nodes
+                    node.cpu_usage = None
+                    node.cpu_count = None
+                    node.memory_usage = None
+                    node.memory_total = None
+                    node.memory_percentage = None
+                    node.disk_usage = None
+                    node.disk_total = None
+                    node.disk_percentage = None
+                    node.load_average = None
+                    node.uptime = None
+                    node.version = None
+                    node.vm_count = None
+                    node.lxc_count = None
                 
                 client.close()
                 
@@ -223,6 +294,21 @@ def get_nodes():
                 node.is_connected = False
                 node.connection_error = str(e)
                 node.status = 'error'
+                
+                # Clear metrics for error state nodes
+                node.cpu_usage = None
+                node.cpu_count = None
+                node.memory_usage = None
+                node.memory_total = None
+                node.memory_percentage = None
+                node.disk_usage = None
+                node.disk_total = None
+                node.disk_percentage = None
+                node.load_average = None
+                node.uptime = None
+                node.version = None
+                node.vm_count = None
+                node.lxc_count = None
             
             node.last_updated = datetime.utcnow().isoformat() + 'Z'
             nodes_with_status.append(node.to_dict())
@@ -659,7 +745,7 @@ def _control_resource(node_id: str, vmid: int, operation: str, force: bool = Fal
                 return create_error_response(f"Resource {vmid} not found", 404)
         
         # Log operation start
-        operation_type = OperationType(operation.upper())
+        operation_type = OperationType(operation.lower())
         operation_id = log_operation(
             node=node_name,
             resource_type=resource_type,
@@ -776,14 +862,14 @@ def get_operation_history():
         operation_type = None
         if operation_type_str:
             try:
-                operation_type = OperationType(operation_type_str.upper())
+                operation_type = OperationType(operation_type_str.lower())
             except ValueError:
                 return create_error_response(f"Invalid operation_type: {operation_type_str}", 400)
         
         status = None
         if status_str:
             try:
-                status = OperationStatus(status_str.upper())
+                status = OperationStatus(status_str.lower())
             except ValueError:
                 return create_error_response(f"Invalid status: {status_str}", 400)
         
@@ -833,14 +919,14 @@ def get_node_operation_history(node_id: str):
         operation_type = None
         if operation_type_str:
             try:
-                operation_type = OperationType(operation_type_str.upper())
+                operation_type = OperationType(operation_type_str.lower())
             except ValueError:
                 return create_error_response(f"Invalid operation_type: {operation_type_str}", 400)
         
         status = None
         if status_str:
             try:
-                status = OperationStatus(status_str.upper())
+                status = OperationStatus(status_str.lower())
             except ValueError:
                 return create_error_response(f"Invalid status: {status_str}", 400)
         

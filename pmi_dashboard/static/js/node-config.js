@@ -251,7 +251,18 @@ class NodeConfigManager {
             
         } catch (error) {
             console.error('Failed to save node:', error);
-            this.showNotification(`Failed to save node: ${error.message}`, 'error');
+            
+            // Extract more specific error message from API response
+            let errorMessage = error.message;
+            if (error.message && error.message.includes('Connection failed')) {
+                errorMessage = 'Cannot connect to Proxmox server. Please check the host, port, and network connectivity.';
+            } else if (error.message && error.message.includes('Authentication failed')) {
+                errorMessage = 'Authentication failed. Please check your API token credentials.';
+            } else if (error.message && error.message.includes('timeout')) {
+                errorMessage = 'Connection timeout. Please check if the Proxmox server is running and accessible.';
+            }
+            
+            this.showNotification(`Failed to save node: ${errorMessage}`, 'error');
         } finally {
             this.setButtonLoading(saveBtn, false);
         }
@@ -459,7 +470,21 @@ class NodeConfigManager {
             
         } catch (error) {
             console.error('Connection test failed:', error);
-            this.showTestResult(`Connection failed: ${error.message}`, 'error');
+            
+            // Extract more specific error message
+            let errorMessage = error.message;
+            if (error.message && error.message.includes('Connection failed')) {
+                errorMessage = 'Cannot connect to server. Check host, port, and network.';
+            } else if (error.message && error.message.includes('Authentication failed')) {
+                errorMessage = 'Authentication failed. Check API token credentials.';
+            } else if (error.message && error.message.includes('timeout')) {
+                errorMessage = 'Connection timeout. Server may be unreachable.';
+            }
+            
+            this.showTestResult(`Connection failed: ${errorMessage}`, 'error');
+            
+            // Also show a notification for better visibility
+            this.showNotification(`Connection test failed: ${errorMessage}`, 'error');
         } finally {
             this.setButtonLoading(testBtn, false);
         }
@@ -568,8 +593,9 @@ class NodeConfigManager {
      * @param {string} type - Message type
      */
     showNotification(message, type = 'info') {
-        if (window.dashboard && window.dashboard.showNotification) {
-            window.dashboard.showNotification(message, type);
+        // Use the global showNotification function from proxmox.js
+        if (typeof showNotification === 'function') {
+            showNotification(message, type);
         } else {
             console.log(`[${type.toUpperCase()}] ${message}`);
         }

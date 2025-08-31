@@ -12,7 +12,7 @@ class NodeDashboard {
         this.autoRefreshEnabled = true;
         this.refreshIntervalMs = 10000; // 10 seconds
         this.isLoading = false;
-        
+
         this.init();
     }
 
@@ -65,9 +65,9 @@ class NodeDashboard {
      */
     async loadNodes(silent = false) {
         if (this.isLoading) return;
-        
+
         this.isLoading = true;
-        
+
         // Show appropriate loading indicators
         if (!silent) {
             this.showLoading();
@@ -77,7 +77,7 @@ class NodeDashboard {
 
         try {
             const response = await proxmoxAPI.getNodes();
-            
+
             if (response.success) {
                 if (silent) {
                     this.updateNodesDataSilently(response.data);
@@ -89,12 +89,15 @@ class NodeDashboard {
                     this.showError('Failed to load nodes: ' + (response.error || 'Unknown error'));
                 } else {
                     console.warn('Silent refresh failed:', response.error);
+                    this.markAllNodesAsOffline('API connection failed');
                 }
             }
         } catch (error) {
             console.error('Failed to load nodes:', error);
             if (!silent) {
                 this.showError('Failed to load nodes: ' + error.message);
+            } else {
+                this.markAllNodesAsOffline(error.message);
             }
         } finally {
             this.isLoading = false;
@@ -105,25 +108,83 @@ class NodeDashboard {
     }
 
     /**
+     * Mark all existing node cards as offline
+     * @param {string} errorMessage - Error message to display
+     */
+    markAllNodesAsOffline(errorMessage) {
+        const nodeCards = document.querySelectorAll('.node-card[data-node-id]');
+        nodeCards.forEach(card => {
+            // Update status badge
+            const statusBadge = card.querySelector('.node-status-badge');
+            if (statusBadge) {
+                statusBadge.textContent = 'Offline';
+                statusBadge.className = 'node-status-badge status-offline';
+            }
+
+            // Update connection info
+            const connectionIcon = card.querySelector('.connection-icon');
+            const connectionText = card.querySelector('.connection-text');
+            if (connectionIcon && connectionText) {
+                connectionIcon.className = 'connection-icon fas fa-times-circle text-danger';
+                connectionText.textContent = errorMessage;
+                connectionText.className = 'connection-text text-danger';
+            }
+
+            // Reset metrics to show no data
+            const cpuUsage = card.querySelector('.cpu-usage');
+            const cpuProgress = card.querySelector('.cpu-progress');
+            const memoryUsage = card.querySelector('.memory-usage');
+            const memoryProgress = card.querySelector('.memory-progress');
+            const diskUsage = card.querySelector('.disk-usage');
+            const diskProgress = card.querySelector('.disk-progress');
+
+            if (cpuUsage) cpuUsage.textContent = '--';
+            if (cpuProgress) {
+                cpuProgress.style.width = '0%';
+                cpuProgress.className = 'metric-progress cpu-progress';
+            }
+            if (memoryUsage) memoryUsage.textContent = '--';
+            if (memoryProgress) {
+                memoryProgress.style.width = '0%';
+                memoryProgress.className = 'metric-progress memory-progress';
+            }
+            if (diskUsage) diskUsage.textContent = '--';
+            if (diskProgress) {
+                diskProgress.style.width = '0%';
+                diskProgress.className = 'metric-progress disk-progress';
+            }
+
+            // Add offline visual indicator
+            card.classList.add('node-offline');
+        });
+
+        // Show notification about connection loss
+        if (typeof showNotification === 'function') {
+            showNotification(`Dashboard connection lost: ${errorMessage}`, 'error', 5000);
+        }
+    }
+
+    /**
      * Refresh nodes data (manual refresh)
      */
     async refreshNodes() {
         const refreshBtn = document.getElementById('refresh-nodes-btn');
         const originalContent = refreshBtn?.innerHTML;
-        
+
         if (refreshBtn) {
             refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
             refreshBtn.disabled = true;
         }
 
         try {
-            // Use silent refresh to avoid page jumping
             await this.loadNodes(true);
-            
-            // Show success notification
-            showNotification('Nodes refreshed successfully', 'success', 2000);
+            if (typeof showNotification === 'function') {
+                showNotification('Nodes refreshed successfully', 'success', 2000);
+            }
         } catch (error) {
-            showNotification('Failed to refresh nodes: ' + error.message, 'error');
+            if (typeof showNotification === 'function') {
+                showNotification('Failed to refresh nodes: ' + error.message, 'error');
+            }
         } finally {
             if (refreshBtn) {
                 refreshBtn.innerHTML = originalContent;
@@ -139,7 +200,7 @@ class NodeDashboard {
     updateNodesDataSilently(nodesData) {
         const container = document.getElementById('nodes-container');
         const emptyState = document.getElementById('nodes-empty-state');
-        
+
         if (!container) return;
 
         // If no nodes exist and we have data, do a full update
@@ -177,7 +238,7 @@ class NodeDashboard {
         existingCards.forEach(cardElement => {
             const nodeId = cardElement.getAttribute('data-node-id');
             existingNodeIds.add(nodeId);
-            
+
             const newNodeData = newNodesMap.get(nodeId);
             if (newNodeData) {
                 this.updateExistingNodeCard(cardElement, newNodeData);
@@ -196,14 +257,14 @@ class NodeDashboard {
                 nodeCard.style.opacity = '0';
                 nodeCard.style.transform = 'translateY(20px)';
                 container.appendChild(nodeCard);
-                
+
                 // Animate in the new card
                 requestAnimationFrame(() => {
                     nodeCard.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
                     nodeCard.style.opacity = '1';
                     nodeCard.style.transform = 'translateY(0)';
                 });
-                
+
                 this.nodes.set(nodeData.id, nodeData);
             }
         });
@@ -219,24 +280,38 @@ class NodeDashboard {
         const nameText = cardElement.querySelector('.name-text');
         const nodeHost = cardElement.querySelector('.node-host');
         const statusBadge = cardElement.querySelector('.node-status-badge');
-        
+
         if (nameText) nameText.textContent = nodeData.name || 'Unknown Node';
         if (nodeHost) nodeHost.textContent = `${nodeData.host}:${nodeData.port || 8006}`;
-        
+
         // Update status badge with animation
         this.updateStatusBadgeAnimated(statusBadge, nodeData.status, nodeData.is_connected);
-        
+
         // Update metrics with animation
         this.updateNodeMetricsAnimated(cardElement, nodeData);
-        
+
         // Update connection info
         this.updateConnectionInfoAnimated(cardElement, nodeData);
-        
+
         // Update VM/LXC counts
         this.updateResourceCountsAnimated(cardElement, nodeData);
-    }
 
-    /**
+        // Update visual state based on connection
+        if (nodeData.is_connected) {
+            cardElement.classList.remove('node-offline');
+            cardElement.classList.add('node-online');
+        } else {
+            cardElement.classList.remove('node-online');
+            cardElement.classList.add('node-offline');
+        }
+
+        // Emit event for metrics system integration
+        const nodeUpdatedEvent = new CustomEvent('nodeUpdated', {
+            detail: { node: nodeData }
+        });
+        document.dispatchEvent(nodeUpdatedEvent);
+    }    /**
+
      * Update status badge with smooth animation
      * @param {HTMLElement} badge - Status badge element
      * @param {string} status - Node status
@@ -244,11 +319,11 @@ class NodeDashboard {
      */
     updateStatusBadgeAnimated(badge, status, isConnected) {
         if (!badge) return;
-        
+
         const currentText = badge.textContent;
         let statusText = 'Unknown';
         let statusClass = 'status-unknown';
-        
+
         if (isConnected) {
             switch (status) {
                 case 'online':
@@ -278,7 +353,7 @@ class NodeDashboard {
                     statusClass = 'status-offline';
             }
         }
-        
+
         // Only update if changed
         if (currentText !== statusText) {
             badge.style.transition = 'all 0.3s ease';
@@ -296,8 +371,8 @@ class NodeDashboard {
         // CPU metrics
         const cpuUsage = cardElement.querySelector('.cpu-usage');
         const cpuProgress = cardElement.querySelector('.cpu-progress');
-        
-        if (nodeData.is_connected && nodeData.cpu_usage !== undefined) {
+
+        if (nodeData.is_connected && nodeData.cpu_usage !== undefined && nodeData.cpu_usage !== null) {
             const cpuPercent = Math.round(nodeData.cpu_usage * 100);
             if (cpuUsage && cpuUsage.textContent !== `${cpuPercent}%`) {
                 cpuUsage.textContent = `${cpuPercent}%`;
@@ -323,8 +398,8 @@ class NodeDashboard {
         // Memory metrics
         const memoryUsage = cardElement.querySelector('.memory-usage');
         const memoryProgress = cardElement.querySelector('.memory-progress');
-        
-        if (nodeData.is_connected && nodeData.memory_percentage !== undefined) {
+
+        if (nodeData.is_connected && nodeData.memory_percentage !== undefined && nodeData.memory_percentage !== null) {
             const memPercent = Math.round(nodeData.memory_percentage);
             if (memoryUsage && memoryUsage.textContent !== `${memPercent}%`) {
                 memoryUsage.textContent = `${memPercent}%`;
@@ -350,8 +425,8 @@ class NodeDashboard {
         // Disk metrics
         const diskUsage = cardElement.querySelector('.disk-usage');
         const diskProgress = cardElement.querySelector('.disk-progress');
-        
-        if (nodeData.is_connected && nodeData.disk_percentage !== undefined) {
+
+        if (nodeData.is_connected && nodeData.disk_percentage !== undefined && nodeData.disk_percentage !== null) {
             const diskPercent = Math.round(nodeData.disk_percentage);
             if (diskUsage && diskUsage.textContent !== `${diskPercent}%`) {
                 diskUsage.textContent = `${diskPercent}%`;
@@ -384,15 +459,15 @@ class NodeDashboard {
         const connectionIcon = cardElement.querySelector('.connection-icon');
         const connectionText = cardElement.querySelector('.connection-text');
         const updateTime = cardElement.querySelector('.update-time');
-        
+
         if (connectionIcon && connectionText) {
             const currentConnected = connectionIcon.classList.contains('text-success');
             const newConnected = nodeData.is_connected;
-            
+
             if (currentConnected !== newConnected) {
                 connectionIcon.style.transition = 'color 0.3s ease';
                 connectionText.style.transition = 'color 0.3s ease';
-                
+
                 if (nodeData.is_connected) {
                     connectionIcon.className = 'connection-icon fas fa-circle text-success';
                     connectionText.textContent = 'Connected';
@@ -404,7 +479,7 @@ class NodeDashboard {
                 }
             }
         }
-        
+
         if (updateTime) {
             if (nodeData.last_updated) {
                 const lastUpdate = new Date(nodeData.last_updated);
@@ -432,7 +507,7 @@ class NodeDashboard {
     updateResourceCountsAnimated(cardElement, nodeData) {
         const vmCountText = cardElement.querySelector('.vm-count-text');
         const lxcCountText = cardElement.querySelector('.lxc-count-text');
-        
+
         if (vmCountText) {
             const newVmCount = nodeData.vm_count || 0;
             if (vmCountText.textContent !== newVmCount.toString()) {
@@ -444,7 +519,7 @@ class NodeDashboard {
                 }, 500);
             }
         }
-        
+
         if (lxcCountText) {
             const newLxcCount = nodeData.lxc_count || 0;
             if (lxcCountText.textContent !== newLxcCount.toString()) {
@@ -466,7 +541,7 @@ class NodeDashboard {
         cardElement.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
         cardElement.style.opacity = '0';
         cardElement.style.transform = 'translateY(-20px)';
-        
+
         setTimeout(() => {
             if (cardElement.parentNode) {
                 cardElement.parentNode.removeChild(cardElement);
@@ -481,7 +556,7 @@ class NodeDashboard {
     updateNodesDisplay(nodesData) {
         const container = document.getElementById('nodes-container');
         const emptyState = document.getElementById('nodes-empty-state');
-        
+
         if (!container) return;
 
         // Clear existing content
@@ -505,10 +580,14 @@ class NodeDashboard {
         nodesData.forEach(nodeData => {
             const nodeCard = this.createNodeCard(nodeData);
             container.appendChild(nodeCard);
-            
-            // Store node data
             this.nodes.set(nodeData.id, nodeData);
         });
+
+        // Emit event for metrics system integration
+        const nodesLoadedEvent = new CustomEvent('nodesLoaded', {
+            detail: { nodes: nodesData }
+        });
+        document.dispatchEvent(nodesLoadedEvent);
     }
 
     /**
@@ -525,44 +604,40 @@ class NodeDashboard {
 
         const card = template.content.cloneNode(true);
         const cardElement = card.querySelector('.node-card');
-        
+
         // Set node ID and initial state
         cardElement.setAttribute('data-node-id', nodeData.id);
         cardElement.classList.add('node-card-loading');
-        
+
         // Update node info
         const nameText = card.querySelector('.name-text');
         const nodeHost = card.querySelector('.node-host');
         const statusBadge = card.querySelector('.node-status-badge');
-        
+
         if (nameText) nameText.textContent = nodeData.name || 'Unknown Node';
         if (nodeHost) nodeHost.textContent = `${nodeData.host}:${nodeData.port || 8006}`;
-        
+
         // Update status badge
         this.updateStatusBadge(statusBadge, nodeData.status, nodeData.is_connected);
-        
+
         // Update metrics
         this.updateNodeMetrics(card, nodeData);
-        
+
         // Update connection info
         this.updateConnectionInfo(card, nodeData);
-        
+
         // Update VM/LXC counts
         this.updateResourceCounts(card, nodeData);
-        
-        // Bind card events
-        this.bindCardEvents(card, nodeData);
-        
+
         // Remove loading state after a brief delay to ensure smooth rendering
         setTimeout(() => {
             cardElement.classList.remove('node-card-loading');
             cardElement.classList.add('node-card-ready');
         }, 100);
-        
-        return card;
-    }
 
-    /**
+        return card;
+    } 
+   /**
      * Update status badge
      * @param {HTMLElement} badge - Status badge element
      * @param {string} status - Node status
@@ -570,13 +645,13 @@ class NodeDashboard {
      */
     updateStatusBadge(badge, status, isConnected) {
         if (!badge) return;
-        
+
         // Clear existing classes
         badge.className = 'node-status-badge';
-        
+
         let statusText = 'Unknown';
         let statusClass = 'status-unknown';
-        
+
         if (isConnected) {
             switch (status) {
                 case 'online':
@@ -606,7 +681,7 @@ class NodeDashboard {
                     statusClass = 'status-offline';
             }
         }
-        
+
         badge.textContent = statusText;
         badge.classList.add(statusClass);
     }
@@ -620,8 +695,8 @@ class NodeDashboard {
         // CPU metrics
         const cpuUsage = card.querySelector('.cpu-usage');
         const cpuProgress = card.querySelector('.cpu-progress');
-        
-        if (nodeData.is_connected && nodeData.cpu_usage !== undefined) {
+
+        if (nodeData.is_connected && nodeData.cpu_usage !== undefined && nodeData.cpu_usage !== null) {
             const cpuPercent = Math.round(nodeData.cpu_usage * 100);
             if (cpuUsage) cpuUsage.textContent = `${cpuPercent}%`;
             if (cpuProgress) {
@@ -641,8 +716,8 @@ class NodeDashboard {
         // Memory metrics
         const memoryUsage = card.querySelector('.memory-usage');
         const memoryProgress = card.querySelector('.memory-progress');
-        
-        if (nodeData.is_connected && nodeData.memory_percentage !== undefined) {
+
+        if (nodeData.is_connected && nodeData.memory_percentage !== undefined && nodeData.memory_percentage !== null) {
             const memPercent = Math.round(nodeData.memory_percentage);
             if (memoryUsage) memoryUsage.textContent = `${memPercent}%`;
             if (memoryProgress) {
@@ -662,8 +737,8 @@ class NodeDashboard {
         // Disk metrics
         const diskUsage = card.querySelector('.disk-usage');
         const diskProgress = card.querySelector('.disk-progress');
-        
-        if (nodeData.is_connected && nodeData.disk_percentage !== undefined) {
+
+        if (nodeData.is_connected && nodeData.disk_percentage !== undefined && nodeData.disk_percentage !== null) {
             const diskPercent = Math.round(nodeData.disk_percentage);
             if (diskUsage) diskUsage.textContent = `${diskPercent}%`;
             if (diskProgress) {
@@ -682,7 +757,7 @@ class NodeDashboard {
     }
 
     /**
-     * Update connection info
+     * Update connection info display
      * @param {DocumentFragment|HTMLElement} card - Card element
      * @param {Object} nodeData - Node data
      */
@@ -690,7 +765,7 @@ class NodeDashboard {
         const connectionIcon = card.querySelector('.connection-icon');
         const connectionText = card.querySelector('.connection-text');
         const updateTime = card.querySelector('.update-time');
-        
+
         if (connectionIcon && connectionText) {
             if (nodeData.is_connected) {
                 connectionIcon.className = 'connection-icon fas fa-circle text-success';
@@ -702,7 +777,7 @@ class NodeDashboard {
                 connectionText.className = 'connection-text text-danger';
             }
         }
-        
+
         if (updateTime) {
             if (nodeData.last_updated) {
                 const lastUpdate = new Date(nodeData.last_updated);
@@ -714,164 +789,21 @@ class NodeDashboard {
     }
 
     /**
-     * Update resource counts (VMs and LXC containers)
+     * Update resource counts display
      * @param {DocumentFragment|HTMLElement} card - Card element
      * @param {Object} nodeData - Node data
      */
     updateResourceCounts(card, nodeData) {
         const vmCountText = card.querySelector('.vm-count-text');
         const lxcCountText = card.querySelector('.lxc-count-text');
-        
+
         if (vmCountText) {
             vmCountText.textContent = nodeData.vm_count || 0;
         }
-        
+
         if (lxcCountText) {
             lxcCountText.textContent = nodeData.lxc_count || 0;
         }
-    }
-
-    /**
-     * Bind events to card elements
-     * @param {DocumentFragment|HTMLElement} card - Card element
-     * @param {Object} nodeData - Node data
-     */
-    bindCardEvents(card, nodeData) {
-        // Dashboard link button
-        const dashboardBtn = card.querySelector('.dashboard-link-btn');
-        if (dashboardBtn) {
-            dashboardBtn.addEventListener('click', () => {
-                this.openProxmoxDashboard(nodeData);
-            });
-        }
-
-        // Test connection button
-        const testBtn = card.querySelector('.test-node-btn');
-        if (testBtn) {
-            testBtn.addEventListener('click', () => {
-                this.testNodeConnection(nodeData.id, testBtn);
-            });
-        }
-
-        // Edit button
-        const editBtn = card.querySelector('.edit-node-btn');
-        if (editBtn) {
-            editBtn.addEventListener('click', () => {
-                this.editNode(nodeData);
-            });
-        }
-
-        // Delete button
-        const deleteBtn = card.querySelector('.delete-node-btn');
-        if (deleteBtn) {
-            deleteBtn.addEventListener('click', () => {
-                this.deleteNode(nodeData);
-            });
-        }
-
-        // Resources button
-        const resourcesBtn = card.querySelector('.resources-btn');
-        if (resourcesBtn) {
-            resourcesBtn.addEventListener('click', () => {
-                this.viewNodeResources(nodeData);
-            });
-        }
-    }
-
-    /**
-     * Open Proxmox web dashboard
-     * @param {Object} nodeData - Node data
-     */
-    openProxmoxDashboard(nodeData) {
-        const protocol = nodeData.ssl_verify !== false ? 'https' : 'https'; // Always use HTTPS for Proxmox
-        const port = nodeData.port || 8006;
-        const url = `${protocol}://${nodeData.host}:${port}`;
-        
-        // Open in new tab/window
-        window.open(url, '_blank', 'noopener,noreferrer');
-        
-        // Log the action
-        console.log(`Opening Proxmox dashboard for ${nodeData.name}: ${url}`);
-    }
-
-    /**
-     * Test node connection
-     * @param {string} nodeId - Node ID
-     * @param {HTMLElement} button - Test button element
-     */
-    async testNodeConnection(nodeId, button) {
-        const originalContent = button.innerHTML;
-        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-        button.disabled = true;
-
-        try {
-            const response = await proxmoxAPI.testNodeConnection(nodeId);
-            
-            if (response.success) {
-                if (response.data.connected) {
-                    showNotification('Connection test successful', 'success');
-                } else {
-                    showNotification('Connection test failed: ' + response.message, 'warning');
-                }
-            } else {
-                showNotification('Connection test failed: ' + response.error, 'error');
-            }
-        } catch (error) {
-            console.error('Connection test failed:', error);
-            showNotification('Connection test failed: ' + error.message, 'error');
-        } finally {
-            button.innerHTML = originalContent;
-            button.disabled = false;
-        }
-    }
-
-    /**
-     * Edit node configuration
-     * @param {Object} nodeData - Node data
-     */
-    editNode(nodeData) {
-        // Trigger the node configuration form via the config manager
-        if (window.nodeConfigManager) {
-            window.nodeConfigManager.showEditNodeForm(nodeData);
-        } else {
-            console.log('Edit node:', nodeData);
-            showNotification('Node configuration manager not available', 'error');
-        }
-    }
-
-    /**
-     * Delete node
-     * @param {Object} nodeData - Node data
-     */
-    async deleteNode(nodeData) {
-        if (!confirm(`Are you sure you want to delete the node "${nodeData.name}"?`)) {
-            return;
-        }
-
-        try {
-            const response = await proxmoxAPI.deleteNode(nodeData.id);
-            
-            if (response.success) {
-                showNotification(`Node "${nodeData.name}" deleted successfully`, 'success');
-                this.refreshNodes();
-            } else {
-                showNotification('Failed to delete node: ' + response.error, 'error');
-            }
-        } catch (error) {
-            console.error('Failed to delete node:', error);
-            showNotification('Failed to delete node: ' + error.message, 'error');
-        }
-    }
-
-    /**
-     * View node resources
-     * @param {Object} nodeData - Node data
-     */
-    viewNodeResources(nodeData) {
-        // This would show VM/LXC resources for the node
-        // For now, just log the action
-        console.log('View resources for node:', nodeData);
-        showNotification('Resource view will be implemented in a future task', 'info');
     }
 
     /**
@@ -880,10 +812,10 @@ class NodeDashboard {
      * @returns {string} CSS class name
      */
     getProgressColorClass(percentage) {
-        if (percentage >= 90) return 'progress-danger';
+        if (percentage >= 90) return 'progress-critical';
         if (percentage >= 75) return 'progress-warning';
-        if (percentage >= 50) return 'progress-info';
-        return 'progress-success';
+        if (percentage >= 50) return 'progress-medium';
+        return 'progress-good';
     }
 
     /**
@@ -892,17 +824,17 @@ class NodeDashboard {
     showLoading() {
         const container = document.getElementById('nodes-container');
         const emptyState = document.getElementById('nodes-empty-state');
-        
+
         if (container) {
             container.innerHTML = `
                 <div class="loading-placeholder">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    Loading nodes...
+                    <div class="loading-spinner"></div>
+                    <p>Loading nodes...</p>
                 </div>
             `;
-            container.style.display = 'block';
+            container.style.display = 'flex';
         }
-        
+
         if (emptyState) {
             emptyState.style.display = 'none';
         }
@@ -915,44 +847,45 @@ class NodeDashboard {
     showError(message) {
         const container = document.getElementById('nodes-container');
         const emptyState = document.getElementById('nodes-empty-state');
-        
+
         if (container) {
             container.innerHTML = `
                 <div class="error-placeholder">
                     <i class="fas fa-exclamation-triangle"></i>
+                    <h3>Error Loading Nodes</h3>
                     <p>${message}</p>
-                    <button class="btn btn-primary" onclick="nodeDashboard.refreshNodes()">
-                        <i class="fas fa-sync-alt"></i>
-                        Retry
+                    <button class="btn btn-primary" onclick="nodeDashboard.loadNodes()">
+                        <i class="fas fa-redo"></i> Retry
                     </button>
                 </div>
             `;
-            container.style.display = 'block';
+            container.style.display = 'flex';
         }
-        
+
         if (emptyState) {
             emptyState.style.display = 'none';
         }
-        
-        showNotification(message, 'error');
+    }
+
+    /**
+     * Show/hide refresh indicator
+     * @param {boolean} show - Whether to show the indicator
+     */
+    showRefreshIndicator(show) {
+        const indicator = document.getElementById('refresh-indicator');
+        if (indicator) {
+            indicator.style.display = show ? 'block' : 'none';
+        }
     }
 
     /**
      * Start auto-refresh
      */
     startAutoRefresh() {
-        if (this.refreshInterval) {
-            clearInterval(this.refreshInterval);
-        }
-        
+        this.stopAutoRefresh();
         if (this.autoRefreshEnabled) {
             this.refreshInterval = setInterval(() => {
-                // Only refresh if the Proxmox tab is active
-                const proxmoxPanel = document.getElementById('proxmox-panel');
-                if (proxmoxPanel && !proxmoxPanel.hidden && proxmoxPanel.classList.contains('active')) {
-                    // Use silent refresh for auto-refresh to avoid disturbing the user
-                    this.loadNodes(true);
-                }
+                this.loadNodes(true); // Silent refresh
             }, this.refreshIntervalMs);
         }
     }
@@ -966,56 +899,17 @@ class NodeDashboard {
             this.refreshInterval = null;
         }
     }
-
-    /**
-     * Show or hide the refresh indicator
-     * @param {boolean} show - Whether to show the indicator
-     */
-    showRefreshIndicator(show) {
-        const indicator = document.getElementById('refresh-indicator');
-        if (!indicator) return;
-        
-        if (show) {
-            indicator.style.display = 'flex';
-            // Small delay to ensure the element is rendered before adding the class
-            requestAnimationFrame(() => {
-                indicator.classList.add('show');
-            });
-        } else {
-            indicator.classList.remove('show');
-            // Hide after transition completes
-            setTimeout(() => {
-                if (!indicator.classList.contains('show')) {
-                    indicator.style.display = 'none';
-                }
-            }, 300);
-        }
-    }
-
-    /**
-     * Destroy the dashboard (cleanup)
-     */
-    destroy() {
-        this.stopAutoRefresh();
-        this.nodes.clear();
-    }
 }
 
 // Global instance
 let nodeDashboard;
 
-// Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', function() {
-    // Only initialize if we're on the Proxmox tab
-    const proxmoxPanel = document.getElementById('proxmox-panel');
-    if (proxmoxPanel) {
-        nodeDashboard = new NodeDashboard();
-        // Expose globally for other modules
-        window.nodeDashboard = nodeDashboard;
-    }
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    nodeDashboard = new NodeDashboard();
 });
 
-// Export for module usage
+// Export for module systems
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { NodeDashboard };
+    module.exports = NodeDashboard;
 }
