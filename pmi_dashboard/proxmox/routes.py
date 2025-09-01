@@ -23,14 +23,10 @@ from .api_client import (
 from .models import (
     ProxmoxNode, 
     ProxmoxResource, 
-    OperationHistory,
     ResourceType, 
-    ResourceStatus, 
-    OperationType, 
-    OperationStatus,
+    ResourceStatus,
     validate_vmid
 )
-from .history import get_history_manager, create_operation
 from config import ProxmoxConfigManager
 
 logger = logging.getLogger(__name__)
@@ -159,55 +155,7 @@ def create_success_response(data: Any = None, message: str = None) -> Dict[str, 
     return response
 
 
-def log_operation(node: str, resource_type: ResourceType, resource_id: Optional[int],
-                 resource_name: Optional[str], operation: OperationType, 
-                 status: OperationStatus, error_message: Optional[str] = None,
-                 duration: Optional[float] = None, user: Optional[str] = None,
-                 details: Optional[Dict[str, Any]] = None) -> str:
-    """
-    Log an operation to the operation history.
-    
-    Args:
-        node: Node name
-        resource_type: Type of resource
-        resource_id: Resource ID (None for node operations)
-        resource_name: Resource name
-        operation: Operation type
-        status: Operation status
-        error_message: Error message if operation failed
-        duration: Operation duration in seconds
-        user: User who performed the operation
-        details: Additional operation details
-        
-    Returns:
-        Operation ID
-    """
-    # Create operation history entry
-    operation_entry = create_operation(
-        node=node,
-        resource_type=resource_type,
-        resource_id=resource_id,
-        resource_name=resource_name,
-        operation=operation,
-        status=status,
-        user=user,
-        error_message=error_message,
-        duration=duration,
-        details=details
-    )
-    
-    # Save to history
-    history_manager = get_history_manager()
-    operation_id = history_manager.add_operation(operation_entry)
-    
-    # Also log to application logs
-    logger.info(f"Operation {operation_id}: {operation.value} {resource_type.value} "
-               f"{resource_id or node} - Status: {status.value}")
-    
-    if error_message:
-        logger.error(f"Operation {operation_id} failed: {error_message}")
-    
-    return operation_id
+
 
 
 # Node Management Routes
@@ -263,6 +211,19 @@ def get_nodes():
                                 node.load_average = metrics.get('load_average', [0, 0, 0])
                                 node.uptime = metrics.get('uptime', 0)
                                 node.version = metrics.get('status', 'unknown')
+                                
+                                # Get VM and LXC counts
+                                try:
+                                    vms = client.get_vms(node_name)
+                                    node.vm_count = len(vms) if vms else 0
+                                except Exception:
+                                    node.vm_count = 0
+                                
+                                try:
+                                    containers = client.get_containers(node_name)
+                                    node.lxc_count = len(containers) if containers else 0
+                                except Exception:
+                                    node.lxc_count = 0
                         
                         node.status = 'online'
                     except Exception as e:
@@ -359,16 +320,6 @@ def add_node():
         config_manager = ProxmoxConfigManager()
         node_id = config_manager.add_node(data)
         
-        # Log operation
-        log_operation(
-            node=data['name'],
-            resource_type=ResourceType.NODE,
-            resource_id=None,
-            resource_name=data['name'],
-            operation=OperationType.START,  # Using START to represent "add"
-            status=OperationStatus.SUCCESS
-        )
-        
         return jsonify(create_success_response(
             {'node_id': node_id}, 
             f"Node '{data['name']}' added successfully"
@@ -439,16 +390,6 @@ def delete_node(node_id: str):
         success = config_manager.remove_node(node_id)
         if not success:
             return create_error_response(f"Node with ID '{node_id}' not found", 404)
-        
-        # Log operation
-        log_operation(
-            node=existing_node.get('name', node_id),
-            resource_type=ResourceType.NODE,
-            resource_id=None,
-            resource_name=existing_node.get('name'),
-            operation=OperationType.DELETE,
-            status=OperationStatus.SUCCESS
-        )
         
         return jsonify(create_success_response(
             message=f"Node '{existing_node.get('name', node_id)}' deleted successfully"
@@ -691,9 +632,6 @@ def _control_resource(node_id: str, vmid: int, operation: str, force: bool = Fal
     Returns:
         JSON response
     """
-    start_time = datetime.utcnow()
-    operation_id = None
-    
     try:
         # Validate VMID
         vmid = validate_vmid(vmid)
@@ -744,18 +682,6 @@ def _control_resource(node_id: str, vmid: int, operation: str, force: bool = Fal
                 client.close()
                 return create_error_response(f"Resource {vmid} not found", 404)
         
-        # Log operation start
-        operation_type = OperationType(operation.lower())
-        operation_id = log_operation(
-            node=node_name,
-            resource_type=resource_type,
-            resource_id=vmid,
-            resource_name=resource_name,
-            operation=operation_type,
-            status=OperationStatus.IN_PROGRESS,
-            details={'force': force}
-        )
-        
         # Perform the operation
         result = None
         
@@ -776,21 +702,8 @@ def _control_resource(node_id: str, vmid: int, operation: str, force: bool = Fal
         
         client.close()
         
-        # Calculate duration
-        duration = (datetime.utcnow() - start_time).total_seconds()
-        
-        # Update operation as successful
-        if operation_id:
-            history_manager = get_history_manager()
-            history_manager.update_operation(operation_id, {
-                'status': OperationStatus.SUCCESS.value,
-                'duration': duration,
-                'details': {'force': force, 'result': result}
-            })
-        
         return jsonify(create_success_response(
             {
-                'operation_id': operation_id,
                 'vmid': vmid,
                 'operation': operation,
                 'force': force,
@@ -802,236 +715,15 @@ def _control_resource(node_id: str, vmid: int, operation: str, force: bool = Fal
     except ValueError as e:
         return create_error_response(str(e), 400)
     except ProxmoxConnectionError as e:
-        error_msg = f"Connection failed: {str(e)}"
-        if operation_id:
-            duration = (datetime.utcnow() - start_time).total_seconds()
-            history_manager = get_history_manager()
-            history_manager.update_operation(operation_id, {
-                'status': OperationStatus.FAILED.value,
-                'error_message': error_msg,
-                'duration': duration
-            })
-        return create_error_response(error_msg, 503)
+        return create_error_response(f"Connection failed: {str(e)}", 503)
     except ProxmoxAuthenticationError as e:
-        error_msg = f"Authentication failed: {str(e)}"
-        if operation_id:
-            duration = (datetime.utcnow() - start_time).total_seconds()
-            history_manager = get_history_manager()
-            history_manager.update_operation(operation_id, {
-                'status': OperationStatus.FAILED.value,
-                'error_message': error_msg,
-                'duration': duration
-            })
-        return create_error_response(error_msg, 401)
+        return create_error_response(f"Authentication failed: {str(e)}", 401)
     except Exception as e:
-        error_msg = f"Operation failed: {str(e)}"
         logger.exception(f"Failed to {operation} resource {vmid}")
-        if operation_id:
-            duration = (datetime.utcnow() - start_time).total_seconds()
-            history_manager = get_history_manager()
-            history_manager.update_operation(operation_id, {
-                'status': OperationStatus.FAILED.value,
-                'error_message': error_msg,
-                'duration': duration
-            })
-        return create_error_response(error_msg, 500)
-
-
-# Operation History Routes
-
-@proxmox_bp.route('/history', methods=['GET'])
-def get_operation_history():
-    """Get operation history with optional filtering."""
-    try:
-        # Get query parameters for filtering
-        node = request.args.get('node')
-        resource_type_str = request.args.get('resource_type')
-        operation_type_str = request.args.get('operation_type')
-        status_str = request.args.get('status')
-        limit = request.args.get('limit', 100, type=int)
-        offset = request.args.get('offset', 0, type=int)
-        
-        # Convert string parameters to enums
-        resource_type = None
-        if resource_type_str:
-            try:
-                resource_type = ResourceType(resource_type_str)
-            except ValueError:
-                return create_error_response(f"Invalid resource_type: {resource_type_str}", 400)
-        
-        operation_type = None
-        if operation_type_str:
-            try:
-                operation_type = OperationType(operation_type_str.lower())
-            except ValueError:
-                return create_error_response(f"Invalid operation_type: {operation_type_str}", 400)
-        
-        status = None
-        if status_str:
-            try:
-                status = OperationStatus(status_str.lower())
-            except ValueError:
-                return create_error_response(f"Invalid status: {status_str}", 400)
-        
-        # Get history from manager
-        history_manager = get_history_manager()
-        history_data = history_manager.get_operations(
-            node=node,
-            resource_type=resource_type,
-            operation_type=operation_type,
-            status=status,
-            limit=limit,
-            offset=offset
-        )
-        
-        return jsonify(create_success_response(history_data))
-        
-    except Exception as e:
-        logger.exception("Failed to get operation history")
-        return create_error_response(f"Failed to get history: {str(e)}", 500)
-
-
-@proxmox_bp.route('/nodes/<node_id>/history', methods=['GET'])
-def get_node_operation_history(node_id: str):
-    """Get operation history for a specific node."""
-    try:
-        config_manager = ProxmoxConfigManager()
-        node_config = config_manager.get_node_by_id(node_id)
-        
-        if not node_config:
-            return create_error_response(f"Node with ID '{node_id}' not found", 404)
-        
-        # Get query parameters
-        limit = request.args.get('limit', 50, type=int)
-        offset = request.args.get('offset', 0, type=int)
-        resource_type_str = request.args.get('resource_type')
-        operation_type_str = request.args.get('operation_type')
-        status_str = request.args.get('status')
-        
-        # Convert string parameters to enums
-        resource_type = None
-        if resource_type_str:
-            try:
-                resource_type = ResourceType(resource_type_str)
-            except ValueError:
-                return create_error_response(f"Invalid resource_type: {resource_type_str}", 400)
-        
-        operation_type = None
-        if operation_type_str:
-            try:
-                operation_type = OperationType(operation_type_str.lower())
-            except ValueError:
-                return create_error_response(f"Invalid operation_type: {operation_type_str}", 400)
-        
-        status = None
-        if status_str:
-            try:
-                status = OperationStatus(status_str.lower())
-            except ValueError:
-                return create_error_response(f"Invalid status: {status_str}", 400)
-        
-        # Get history from manager using node name
-        node_name = node_config.get('name', node_id)
-        history_manager = get_history_manager()
-        
-        # Get operations with additional filtering
-        history_data = history_manager.get_operations(
-            node=node_name,
-            resource_type=resource_type,
-            operation_type=operation_type,
-            status=status,
-            limit=limit,
-            offset=offset
-        )
-        
-        # Add node information to response
-        history_data['node_id'] = node_id
-        history_data['node_name'] = node_name
-        
-        return jsonify(create_success_response(history_data))
-        
-    except Exception as e:
-        logger.exception("Failed to get node operation history")
-        return create_error_response(f"Failed to get node history: {str(e)}", 500)
+        return create_error_response(f"Operation failed: {str(e)}", 500)
 
 
 # Health Check Route
-
-@proxmox_bp.route('/history/stats', methods=['GET'])
-def get_operation_statistics():
-    """Get operation statistics and summary."""
-    try:
-        history_manager = get_history_manager()
-        
-        # Get all operations for statistics
-        all_operations = history_manager.get_operations(limit=10000)  # Large limit to get all
-        operations = all_operations['operations']
-        
-        # Calculate statistics
-        stats = {
-            'total_operations': len(operations),
-            'operations_by_status': {},
-            'operations_by_type': {},
-            'operations_by_resource_type': {},
-            'operations_by_node': {},
-            'recent_operations': operations[:10],  # Last 10 operations
-            'success_rate': 0.0
-        }
-        
-        # Count by status
-        for op in operations:
-            status = op.get('status', 'unknown')
-            stats['operations_by_status'][status] = stats['operations_by_status'].get(status, 0) + 1
-        
-        # Count by operation type
-        for op in operations:
-            op_type = op.get('operation', 'unknown')
-            stats['operations_by_type'][op_type] = stats['operations_by_type'].get(op_type, 0) + 1
-        
-        # Count by resource type
-        for op in operations:
-            resource_type = op.get('resource_type', 'unknown')
-            stats['operations_by_resource_type'][resource_type] = stats['operations_by_resource_type'].get(resource_type, 0) + 1
-        
-        # Count by node
-        for op in operations:
-            node = op.get('node', 'unknown')
-            stats['operations_by_node'][node] = stats['operations_by_node'].get(node, 0) + 1
-        
-        # Calculate success rate
-        successful_ops = stats['operations_by_status'].get('success', 0)
-        if len(operations) > 0:
-            stats['success_rate'] = (successful_ops / len(operations)) * 100
-        
-        return jsonify(create_success_response(stats))
-        
-    except Exception as e:
-        logger.exception("Failed to get operation statistics")
-        return create_error_response(f"Failed to get statistics: {str(e)}", 500)
-
-
-@proxmox_bp.route('/history/cleanup', methods=['POST'])
-def cleanup_operation_history():
-    """Clean up old operation history entries."""
-    try:
-        data = request.get_json() or {}
-        days = data.get('days', 30)
-        
-        # Validate days parameter
-        if not isinstance(days, int) or days < 1 or days > 365:
-            return create_error_response("Days must be an integer between 1 and 365", 400)
-        
-        history_manager = get_history_manager()
-        history_manager.cleanup_old_operations(days)
-        
-        return jsonify(create_success_response(
-            message=f"Successfully cleaned up operations older than {days} days"
-        ))
-        
-    except Exception as e:
-        logger.exception("Failed to cleanup operation history")
-        return create_error_response(f"Failed to cleanup history: {str(e)}", 500)
-
 
 @proxmox_bp.route('/health', methods=['GET'])
 def health_check():
@@ -1040,16 +732,10 @@ def health_check():
         config_manager = ProxmoxConfigManager()
         nodes = config_manager.get_all_nodes()
         
-        # Get operation history stats
-        history_manager = get_history_manager()
-        recent_operations = history_manager.get_operations(limit=10)
-        
         health_data = {
             'status': 'healthy',
             'nodes_configured': len(nodes),
             'nodes_enabled': len([n for n in nodes if n.get('enabled', True)]),
-            'recent_operations_count': len(recent_operations['operations']),
-            'total_operations': recent_operations['total'],
             'timestamp': datetime.utcnow().isoformat() + 'Z'
         }
         

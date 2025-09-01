@@ -408,41 +408,16 @@ class ProxmoxAPIClient:
             # Get current status which includes basic metrics
             status = self.get_vm_status(node, vmid)
 
-            # Get additional RRD data for more detailed metrics
-            rrd_data = {}
-            try:
-                rrd_data = self._make_request(
-                    "GET",
-                    f"/nodes/{node}/qemu/{vmid}/rrd",
-                    params={"timeframe": "hour", "cf": "AVERAGE"},
-                )
-            except ProxmoxAPIError:
-                # RRD data might not be available for stopped VMs
-                pass
+            # Calculate disk usage using blockstat data
+            disk_usage, disk_total = self._calculate_vm_disk_usage(status)
 
-            # Get disk information using enhanced method
-            disk_info = self.get_resource_disk_info(node, vmid, "qemu")
-            disk_usage = disk_info["disk_usage"] or status.get("disk", 0)
-            disk_total = disk_info["disk_total"] or status.get("maxdisk", 0)
-            
-            # If still no disk usage but we have total, estimate usage
-            if disk_usage == 0 and disk_total > 0:
-                # Try to get actual disk usage from RRD data if available
-                if rrd_data and isinstance(rrd_data, dict) and 'data' in rrd_data and rrd_data['data']:
-                    latest_data = rrd_data['data'][-1] if rrd_data['data'] else {}
-                    if 'diskwrite' in latest_data or 'diskread' in latest_data:
-                        # If we have disk activity, use a reasonable estimate
-                        disk_usage = disk_total * 0.1  # Assume 10% usage as fallback
-
-            # Combine status and RRD data
+            # Use basic metrics from status (no slow RRD or cluster calls)
             metrics = {
                 "vmid": vmid,
                 "name": status.get("name", f"VM-{vmid}"),
                 "status": status.get("status", "unknown"),
                 "uptime": status.get("uptime", 0),
-                "cpu_usage": (
-                    status.get("cpu", 0) * 100 if status.get("cpu") else 0
-                ),  # Convert to percentage
+                "cpu_usage": status.get("cpu", 0) * 100,  # Convert from 0-1 to 0-100 percentage
                 "memory_usage": status.get("mem", 0),
                 "memory_total": status.get("maxmem", 0),
                 "memory_percentage": (
@@ -453,7 +428,7 @@ class ProxmoxAPIClient:
                 "disk_usage": disk_usage,
                 "disk_total": disk_total,
                 "disk_percentage": (
-                    (disk_usage / disk_total) * 100
+                    (disk_usage / disk_total * 100)
                     if disk_total > 0
                     else 0
                 ),
@@ -489,41 +464,13 @@ class ProxmoxAPIClient:
             # Get current status which includes basic metrics
             status = self.get_container_status(node, vmid)
 
-            # Get additional RRD data for more detailed metrics
-            rrd_data = {}
-            try:
-                rrd_data = self._make_request(
-                    "GET",
-                    f"/nodes/{node}/lxc/{vmid}/rrd",
-                    params={"timeframe": "hour", "cf": "AVERAGE"},
-                )
-            except ProxmoxAPIError:
-                # RRD data might not be available for stopped containers
-                pass
-
-            # Get disk information using enhanced method
-            disk_info = self.get_resource_disk_info(node, vmid, "lxc")
-            disk_usage = disk_info["disk_usage"] or status.get("disk", 0)
-            disk_total = disk_info["disk_total"] or status.get("maxdisk", 0)
-            
-            # If still no disk usage but we have total, estimate usage
-            if disk_usage == 0 and disk_total > 0:
-                # Try to get actual disk usage from RRD data if available
-                if rrd_data and isinstance(rrd_data, dict) and 'data' in rrd_data and rrd_data['data']:
-                    latest_data = rrd_data['data'][-1] if rrd_data['data'] else {}
-                    if 'diskwrite' in latest_data or 'diskread' in latest_data:
-                        # If we have disk activity, use a reasonable estimate
-                        disk_usage = disk_total * 0.15  # Assume 15% usage as fallback for containers
-
-            # Combine status and RRD data
+            # Use basic metrics from status (no slow RRD or cluster calls)
             metrics = {
                 "vmid": vmid,
                 "name": status.get("name", f"CT-{vmid}"),
                 "status": status.get("status", "unknown"),
                 "uptime": status.get("uptime", 0),
-                "cpu_usage": (
-                    status.get("cpu", 0) * 100 if status.get("cpu") else 0
-                ),  # Convert to percentage
+                "cpu_usage": status.get("cpu", 0) * 100,  # Convert from 0-1 to 0-100 percentage
                 "memory_usage": status.get("mem", 0),
                 "memory_total": status.get("maxmem", 0),
                 "memory_percentage": (
@@ -531,11 +478,11 @@ class ProxmoxAPIClient:
                     if status.get("maxmem")
                     else 0
                 ),
-                "disk_usage": disk_usage,
-                "disk_total": disk_total,
+                "disk_usage": status.get("disk", 0),
+                "disk_total": status.get("maxdisk", 0),
                 "disk_percentage": (
-                    (disk_usage / disk_total) * 100
-                    if disk_total > 0
+                    (status.get("disk", 0) / status.get("maxdisk", 1)) * 100
+                    if status.get("maxdisk")
                     else 0
                 ),
                 "network_in": status.get("netin", 0),
@@ -569,7 +516,7 @@ class ProxmoxAPIClient:
             status = self.get_node_status(node)
 
             # Calculate percentages
-            cpu_percentage = (status.get("cpu", 0) * 100) if status.get("cpu") else 0
+            cpu_percentage = status.get("cpu", 0)  # Already in percentage
             memory_percentage = (
                 status.get("memory", {}).get("used", 0)
                 / status.get("memory", {}).get("total", 1)
@@ -667,6 +614,8 @@ class ProxmoxAPIClient:
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
         Get all VMs and containers with their current metrics for a node.
+        Optimized version that uses basic status info instead of detailed metrics
+        to avoid slow RRD and cluster resource calls.
 
         Args:
             node: Node name
@@ -677,26 +626,162 @@ class ProxmoxAPIClient:
         result = {"vms": [], "containers": []}
 
         try:
-            # Get VMs
+            # Get VMs with basic metrics (no RRD calls)
             vms = self.get_vms(node)
             for vm in vms:
                 vmid = vm.get("vmid")
                 if vmid:
-                    vm_metrics = self.get_vm_metrics(node, vmid)
-                    result["vms"].append(vm_metrics)
+                    try:
+                        # Get basic status without RRD data for speed
+                        status = self.get_vm_status(node, vmid)
+                        vm_metrics = self._create_basic_vm_metrics(vmid, status, node)
+                        result["vms"].append(vm_metrics)
+                    except ProxmoxAPIError as e:
+                        logger.warning(f"Failed to get VM {vmid} status: {e}")
+                        # Add basic info even if status fails
+                        result["vms"].append({
+                            "vmid": vmid,
+                            "name": vm.get("name", f"VM-{vmid}"),
+                            "status": "unknown",
+                            "error": str(e),
+                            "last_updated": datetime.utcnow().isoformat() + "Z"
+                        })
 
-            # Get containers
+            # Get containers with basic metrics (no RRD calls)
             containers = self.get_containers(node)
             for container in containers:
                 vmid = container.get("vmid")
                 if vmid:
-                    container_metrics = self.get_container_metrics(node, vmid)
-                    result["containers"].append(container_metrics)
+                    try:
+                        # Get basic status without RRD data for speed
+                        status = self.get_container_status(node, vmid)
+                        container_metrics = self._create_basic_container_metrics(vmid, status, node)
+                        result["containers"].append(container_metrics)
+                    except ProxmoxAPIError as e:
+                        logger.warning(f"Failed to get container {vmid} status: {e}")
+                        # Add basic info even if status fails
+                        result["containers"].append({
+                            "vmid": vmid,
+                            "name": container.get("name", f"CT-{vmid}"),
+                            "status": "unknown",
+                            "error": str(e),
+                            "last_updated": datetime.utcnow().isoformat() + "Z"
+                        })
 
         except ProxmoxAPIError as e:
             logger.error(f"Failed to get resources for node {node}: {e}")
 
         return result
+
+    def _calculate_vm_disk_usage(self, status: Dict[str, Any]) -> tuple[int, int]:
+        """
+        Calculate VM disk usage from blockstat data.
+        
+        Args:
+            status: VM status data from API
+            
+        Returns:
+            Tuple of (disk_usage_bytes, disk_total_bytes)
+        """
+        disk_usage = 0
+        disk_total = status.get("maxdisk", 0)
+        
+        # Try to get disk usage from blockstat if available
+        blockstat = status.get("blockstat", {})
+        if blockstat:
+            # Look for primary disk (usually scsi0, ide0, virtio0, etc.)
+            primary_disks = ["scsi0", "virtio0", "ide0", "sata0"]
+            
+            for disk_name in primary_disks:
+                if disk_name in blockstat:
+                    disk_info = blockstat[disk_name]
+                    # Use wr_highest_offset as it indicates the highest written offset
+                    if "wr_highest_offset" in disk_info and disk_info["wr_highest_offset"] > 0:
+                        disk_usage = disk_info["wr_highest_offset"]
+                        break
+        
+        # Fallback to the disk field if blockstat is not available or gives 0
+        if disk_usage == 0:
+            disk_usage = status.get("disk", 0)
+        
+        return disk_usage, disk_total
+
+    def _create_basic_vm_metrics(self, vmid: int, status: Dict[str, Any], node: str = None) -> Dict[str, Any]:
+        """
+        Create basic VM metrics from status data without slow RRD/cluster calls.
+        
+        Args:
+            vmid: VM ID
+            status: VM status data from API
+            node: Node name (optional, for disk info extraction)
+            
+        Returns:
+            Basic VM metrics dictionary
+        """
+        # Calculate disk usage using blockstat data
+        disk_usage, disk_total = self._calculate_vm_disk_usage(status)
+        
+        return {
+            "vmid": vmid,
+            "name": status.get("name", f"VM-{vmid}"),
+            "status": status.get("status", "unknown"),
+            "uptime": status.get("uptime", 0),
+            "cpu_usage": status.get("cpu", 0) * 100,  # Convert from 0-1 to 0-100 percentage
+            "memory_usage": status.get("mem", 0),
+            "memory_total": status.get("maxmem", 0),
+            "memory_percentage": (
+                (status.get("mem", 0) / status.get("maxmem", 1)) * 100
+                if status.get("maxmem")
+                else 0
+            ),
+            "disk_usage": disk_usage,
+            "disk_total": disk_total,
+            "disk_percentage": (
+                (disk_usage / disk_total * 100)
+                if disk_total > 0
+                else 0
+            ),
+            "network_in": status.get("netin", 0),
+            "network_out": status.get("netout", 0),
+            "last_updated": datetime.utcnow().isoformat() + "Z",
+        }
+
+    def _create_basic_container_metrics(self, vmid: int, status: Dict[str, Any], node: str = None) -> Dict[str, Any]:
+        """
+        Create basic container metrics from status data without slow RRD/cluster calls.
+        
+        Args:
+            vmid: Container ID
+            status: Container status data from API
+            node: Node name (optional, for disk info extraction)
+            
+        Returns:
+            Basic container metrics dictionary
+        """
+        return {
+            "vmid": vmid,
+            "name": status.get("name", f"CT-{vmid}"),
+            "status": status.get("status", "unknown"),
+            "uptime": status.get("uptime", 0),
+            "cpu_usage": status.get("cpu", 0) * 100,  # Convert from 0-1 to 0-100 percentage
+            "memory_usage": status.get("mem", 0),
+            "memory_total": status.get("maxmem", 0),
+            "memory_percentage": (
+                (status.get("mem", 0) / status.get("maxmem", 1)) * 100
+                if status.get("maxmem")
+                else 0
+            ),
+            "disk_usage": status.get("disk", 0),
+            "disk_total": status.get("maxdisk", 0),
+            "disk_percentage": (
+                (status.get("disk", 0) / status.get("maxdisk", 1)) * 100
+                if status.get("maxdisk")
+                else 0
+            ),
+            "network_in": status.get("netin", 0),
+            "network_out": status.get("netout", 0),
+            "last_updated": datetime.utcnow().isoformat() + "Z",
+        }
 
     def close(self):
         """Close the HTTP session."""

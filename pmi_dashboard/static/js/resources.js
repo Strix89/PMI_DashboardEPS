@@ -146,10 +146,14 @@ class ResourceManager {
     /**
      * Load resources for the current node
      */
-    async loadResources() {
+    async loadResources(silent = false) {
         if (!this.currentNodeId) return;
 
-        this.showLoadingState();
+        if (!silent) {
+            this.showLoadingState();
+        } else {
+            this.showRefreshIndicator(true);
+        }
 
         try {
             const response = await proxmoxAPI.getNodeResources(this.currentNodeId);
@@ -157,14 +161,22 @@ class ResourceManager {
             if (response.success) {
                 this.resources = response.data;
                 this.renderResources();
-                this.hideLoadingState();
+                if (!silent) {
+                    this.hideLoadingState();
+                } else {
+                    this.showRefreshIndicator(false);
+                }
             } else {
                 throw new Error(response.error || 'Failed to load resources');
             }
         } catch (error) {
             console.error('Failed to load resources:', error);
-            this.showEmptyState();
-            showNotification(`Failed to load resources: ${error.message}`, 'error');
+            if (!silent) {
+                this.showEmptyState();
+                showNotification(`Failed to load resources: ${error.message}`, 'error');
+            } else {
+                this.showRefreshIndicator(false);
+            }
         }
     }
 
@@ -200,6 +212,9 @@ class ResourceManager {
     async refreshResourcesSilently() {
         if (!this.currentNodeId) return;
 
+        // Show refresh indicator
+        this.showRefreshIndicator(true);
+
         try {
             const response = await proxmoxAPI.getNodeResources(this.currentNodeId);
             
@@ -217,6 +232,9 @@ class ResourceManager {
             console.warn('Silent refresh error:', error.message);
             // Mark resources as offline if connection failed
             this.markResourcesAsOffline(error.message);
+        } finally {
+            // Hide refresh indicator
+            this.showRefreshIndicator(false);
         }
     }
 
@@ -1033,6 +1051,27 @@ class ResourceManager {
         const overlay = card.querySelector('.resource-loading-overlay');
         if (overlay) {
             overlay.style.display = 'none';
+        }
+    }
+
+    /**
+     * Show/hide refresh indicator
+     */
+    showRefreshIndicator(show) {
+        const indicator = document.getElementById('refresh-resources-indicator');
+        if (indicator) {
+            if (show) {
+                indicator.style.display = 'flex';
+                indicator.classList.add('show');
+            } else {
+                indicator.classList.remove('show');
+                // Hide after transition
+                setTimeout(() => {
+                    if (!indicator.classList.contains('show')) {
+                        indicator.style.display = 'none';
+                    }
+                }, 300);
+            }
         }
     }
 }

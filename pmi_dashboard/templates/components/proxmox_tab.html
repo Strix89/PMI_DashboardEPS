@@ -40,6 +40,10 @@
                         <span class="form-check-label">Auto-refresh</span>
                     </label>
                 </div>
+                <div id="refresh-resources-indicator" class="refresh-indicator" style="display: none;">
+                    <i class="fas fa-circle"></i>
+                    <span>Updating...</span>
+                </div>
             </div>
         </div>
         
@@ -93,8 +97,7 @@
             </div>
         </div>
         
-        <!-- Operation History Section -->
-        {% include 'components/operation_history.html' %}
+
     </div>
 </div>
 

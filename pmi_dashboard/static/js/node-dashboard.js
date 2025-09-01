@@ -629,6 +629,9 @@ class NodeDashboard {
         // Update VM/LXC counts
         this.updateResourceCounts(card, nodeData);
 
+        // Add event listeners for card buttons
+        this.addCardEventListeners(card, nodeData);
+
         // Remove loading state after a brief delay to ensure smooth rendering
         setTimeout(() => {
             cardElement.classList.remove('node-card-loading');
@@ -636,7 +639,140 @@ class NodeDashboard {
         }, 100);
 
         return card;
-    } 
+    }
+
+    /**
+     * Add event listeners to card buttons
+     * @param {DocumentFragment} card - Card element
+     * @param {Object} nodeData - Node data
+     */
+    addCardEventListeners(card, nodeData) {
+        // Dashboard link button
+        const dashboardBtn = card.querySelector('.dashboard-link-btn');
+        if (dashboardBtn) {
+            dashboardBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.openProxmoxDashboard(nodeData);
+            });
+        }
+
+        // View resources button
+        const resourcesBtn = card.querySelector('.resources-btn');
+        if (resourcesBtn) {
+            resourcesBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.showNodeResources(nodeData);
+            });
+        }
+
+        // Edit node button
+        const editBtn = card.querySelector('.edit-node-btn');
+        if (editBtn) {
+            editBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (window.nodeConfigManager) {
+                    window.nodeConfigManager.showEditNodeForm(nodeData);
+                }
+            });
+        }
+
+        // Delete node button
+        const deleteBtn = card.querySelector('.delete-node-btn');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.confirmDeleteNode(nodeData);
+            });
+        }
+    }
+
+    /**
+     * Open Proxmox dashboard in new tab
+     * @param {Object} nodeData - Node data
+     */
+    openProxmoxDashboard(nodeData) {
+        if (!nodeData.host) {
+            this.showNotification('Host information not available', 'warning');
+            return;
+        }
+
+        const port = nodeData.port || 8006;
+        const url = `https://${nodeData.host}:${port}`;
+        
+        try {
+            window.open(url, '_blank', 'noopener,noreferrer');
+        } catch (error) {
+            console.error('Failed to open Proxmox dashboard:', error);
+            this.showNotification('Failed to open Proxmox dashboard', 'error');
+        }
+    }
+
+    /**
+     * Show node resources
+     * @param {Object} nodeData - Node data
+     */
+    showNodeResources(nodeData) {
+        if (window.resourceManager) {
+            window.resourceManager.showResourcesSection(nodeData.id, nodeData.name);
+        } else {
+            console.warn('ResourceManager not available');
+            this.showNotification('Resources view not available', 'warning');
+        }
+    }
+
+    /**
+     * Confirm and delete node
+     * @param {Object} nodeData - Node data
+     */
+    confirmDeleteNode(nodeData) {
+        const confirmMessage = `Are you sure you want to delete "${nodeData.name}"?\n\nThis will remove the node configuration but will not affect the actual Proxmox server.`;
+        
+        if (confirm(confirmMessage)) {
+            this.deleteNode(nodeData.id);
+        }
+    }
+
+    /**
+     * Delete a node
+     * @param {string} nodeId - Node ID to delete
+     */
+    async deleteNode(nodeId) {
+        try {
+            const result = await proxmoxAPI.deleteNode(nodeId);
+            
+            if (result.success) {
+                this.showNotification('Node deleted successfully', 'success');
+                // Remove from local nodes map
+                this.nodes.delete(nodeId);
+                // Refresh the display
+                this.loadNodes(true);
+            } else {
+                throw new Error(result.error || 'Delete operation failed');
+            }
+        } catch (error) {
+            console.error('Failed to delete node:', error);
+            this.showNotification('Failed to delete node: ' + error.message, 'error');
+        }
+    }
+
+    /**
+     * Show notification message
+     * @param {string} message - Message text
+     * @param {string} type - Message type (success, error, warning, info)
+     */
+    showNotification(message, type = 'info') {
+        // Use the global notification system if available
+        if (window.showNotification) {
+            window.showNotification(message, type);
+        } else {
+            // Fallback to console and alert for critical errors
+            console.log(`[${type.toUpperCase()}] ${message}`);
+            if (type === 'error') {
+                alert(message);
+            }
+        }
+    }
+
    /**
      * Update status badge
      * @param {HTMLElement} badge - Status badge element
@@ -874,7 +1010,18 @@ class NodeDashboard {
     showRefreshIndicator(show) {
         const indicator = document.getElementById('refresh-indicator');
         if (indicator) {
-            indicator.style.display = show ? 'block' : 'none';
+            if (show) {
+                indicator.style.display = 'flex';
+                indicator.classList.add('show');
+            } else {
+                indicator.classList.remove('show');
+                // Hide after transition
+                setTimeout(() => {
+                    if (!indicator.classList.contains('show')) {
+                        indicator.style.display = 'none';
+                    }
+                }, 300);
+            }
         }
     }
 

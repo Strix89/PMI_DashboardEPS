@@ -18,20 +18,11 @@ from .api_client import (
 from .models import (
     ProxmoxNode,
     ProxmoxResource,
-    OperationHistory,
     ResourceType,
     ResourceStatus,
-    OperationType,
-    OperationStatus,
     format_bytes,
     format_uptime,
     validate_vmid
-)
-
-from .history import (
-    OperationHistoryManager,
-    get_history_manager,
-    create_operation
 )
 
 __all__ = [
@@ -45,16 +36,8 @@ __all__ = [
     # Models
     'ProxmoxNode',
     'ProxmoxResource',
-    'OperationHistory',
     'ResourceType',
     'ResourceStatus',
-    'OperationType',
-    'OperationStatus',
-    
-    # History Management
-    'OperationHistoryManager',
-    'get_history_manager',
-    'create_operation',
     
     # Utilities
     'format_bytes',

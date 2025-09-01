@@ -65,11 +65,11 @@
         <div class="vm-summary">
             <span class="vm-count">
                 <i class="fas fa-desktop" aria-hidden="true"></i>
-                {{ node.vm_count if node else 0 }} VMs
+                {{ node.vm_count if node and node.vm_count is not none else 0 }} VMs
             </span>
             <span class="lxc-count">
                 <i class="fas fa-cube" aria-hidden="true"></i>
-                {{ node.lxc_count if node else 0 }} LXC
+                {{ node.lxc_count if node and node.lxc_count is not none else 0 }} LXC
             </span>
         </div>
         <div class="last-updated">

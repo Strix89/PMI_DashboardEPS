@@ -97,8 +97,7 @@ class MetricsInitializer {
             }
         });
 
-        // Initialize operation history manager if available
-        this.initializeHistoryManager();
+
     }
 
     /**
@@ -324,43 +323,7 @@ class MetricsInitializer {
         return activeTab && activeTab.getAttribute('data-tab') === 'proxmox';
     }
 
-    /**
-     * Initialize operation history manager
-     */
-    initializeHistoryManager() {
-        // Check if operation history manager is available
-        if (typeof OperationHistoryManager !== 'undefined' && !window.operationHistoryManager) {
-            // Initialize the history manager
-            window.operationHistoryManager = new OperationHistoryManager();
-            console.log('Operation history manager initialized');
-            
-            // Set up integration with resource manager
-            this.setupHistoryIntegration();
-        }
-    }
 
-    /**
-     * Setup integration between history manager and resource manager
-     */
-    setupHistoryIntegration() {
-        // Listen for resource manager events to update history context
-        document.addEventListener('resourceSectionShown', (e) => {
-            const { nodeId } = e.detail;
-            if (window.operationHistoryManager && nodeId) {
-                window.operationHistoryManager.setNodeId(nodeId);
-            }
-        });
-
-        // Listen for resource operations to refresh history
-        document.addEventListener('resourceOperationCompleted', (e) => {
-            if (window.operationHistoryManager) {
-                // Refresh history after a short delay to allow backend to process
-                setTimeout(() => {
-                    window.operationHistoryManager.refreshHistory();
-                }, 1000);
-            }
-        });
-    }
 
     /**
      * Get monitoring status
@@ -370,8 +333,7 @@ class MetricsInitializer {
         return {
             initialized: this.initialized,
             activeNodes: Array.from(this.nodeMonitoringActive),
-            monitoringCount: this.nodeMonitoringActive.size,
-            historyManagerAvailable: typeof window.operationHistoryManager !== 'undefined'
+            monitoringCount: this.nodeMonitoringActive.size
         };
     }
 }

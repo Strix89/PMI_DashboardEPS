@@ -29,29 +29,7 @@ class ResourceStatus(Enum):
     UNKNOWN = "unknown"
 
 
-class OperationType(Enum):
-    """Enumeration for operation types."""
-    START = "start"
-    STOP = "stop"
-    RESTART = "restart"
-    REBOOT = "reboot"
-    SHUTDOWN = "shutdown"
-    SUSPEND = "suspend"
-    RESUME = "resume"
-    BACKUP = "backup"
-    RESTORE = "restore"
-    MIGRATE = "migrate"
-    CLONE = "clone"
-    DELETE = "delete"
 
-
-class OperationStatus(Enum):
-    """Enumeration for operation status."""
-    SUCCESS = "success"
-    FAILED = "failed"
-    IN_PROGRESS = "in_progress"
-    PENDING = "pending"
-    CANCELLED = "cancelled"
 
 
 @dataclass
@@ -82,6 +60,10 @@ class ProxmoxNode:
     disk_total: int = 0
     disk_percentage: float = 0.0
     load_average: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    
+    # Resource counts
+    vm_count: int = 0
+    lxc_count: int = 0
     
     # Timestamps
     created_at: Optional[str] = None
@@ -116,6 +98,8 @@ class ProxmoxNode:
             'disk_total': self.disk_total,
             'disk_percentage': self.disk_percentage,
             'load_average': self.load_average,
+            'vm_count': self.vm_count,
+            'lxc_count': self.lxc_count,
             'created_at': self.created_at,
             'last_connected': self.last_connected,
             'last_updated': self.last_updated,
@@ -148,6 +132,8 @@ class ProxmoxNode:
             disk_total=data.get('disk_total', 0),
             disk_percentage=data.get('disk_percentage', 0.0),
             load_average=data.get('load_average', [0.0, 0.0, 0.0]),
+            vm_count=data.get('vm_count', 0),
+            lxc_count=data.get('lxc_count', 0),
             created_at=data.get('created_at'),
             last_connected=data.get('last_connected'),
             last_updated=data.get('last_updated'),
@@ -324,84 +310,7 @@ class ProxmoxResource:
         return f"{prefix}-{self.vmid}: {self.name}"
 
 
-@dataclass
-class OperationHistory:
-    """
-    Data model for tracking operations performed on Proxmox resources.
-    """
-    id: str
-    timestamp: str
-    node: str
-    resource_type: ResourceType
-    resource_id: Optional[int]  # None for node operations
-    resource_name: Optional[str]
-    operation: OperationType
-    status: OperationStatus
-    user: Optional[str] = None
-    error_message: Optional[str] = None
-    duration: Optional[float] = None  # Duration in seconds
-    details: Dict[str, Any] = field(default_factory=dict)
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert operation to dictionary representation."""
-        return {
-            'id': self.id,
-            'timestamp': self.timestamp,
-            'node': self.node,
-            'resource_type': self.resource_type.value,
-            'resource_id': self.resource_id,
-            'resource_name': self.resource_name,
-            'operation': self.operation.value,
-            'status': self.status.value,
-            'user': self.user,
-            'error_message': self.error_message,
-            'duration': self.duration,
-            'details': self.details
-        }
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'OperationHistory':
-        """Create operation from dictionary representation."""
-        return cls(
-            id=data['id'],
-            timestamp=data['timestamp'],
-            node=data['node'],
-            resource_type=ResourceType(data['resource_type']),
-            resource_id=data.get('resource_id'),
-            resource_name=data.get('resource_name'),
-            operation=OperationType(data['operation']),
-            status=OperationStatus(data['status']),
-            user=data.get('user'),
-            error_message=data.get('error_message'),
-            duration=data.get('duration'),
-            details=data.get('details', {})
-        )
-    
-    def get_display_text(self) -> str:
-        """Get human-readable display text for the operation."""
-        resource_text = f"{self.resource_type.value.upper()}-{self.resource_id}" if self.resource_id else self.node
-        if self.resource_name:
-            resource_text += f" ({self.resource_name})"
-        
-        operation_text = self.operation.value.replace('_', ' ').title()
-        
-        return f"{operation_text} {resource_text}"
-    
-    def is_completed(self) -> bool:
-        """Check if operation is completed (success or failed)."""
-        return self.status in [OperationStatus.SUCCESS, OperationStatus.FAILED]
-    
-    def is_successful(self) -> bool:
-        """Check if operation completed successfully."""
-        return self.status == OperationStatus.SUCCESS
-    
-    def is_failed(self) -> bool:
-        """Check if operation failed."""
-        return self.status == OperationStatus.FAILED
-    
-    def is_in_progress(self) -> bool:
-        """Check if operation is currently in progress."""
-        return self.status == OperationStatus.IN_PROGRESS
+
 
 
 def format_bytes(bytes_value: int) -> str:
