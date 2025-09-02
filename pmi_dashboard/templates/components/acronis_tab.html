@@ -1,0 +1,455 @@
+<!-- Acronis Tab Content -->
+<div class="acronis-content">
+    <!-- Configuration View -->
+    <div id="acronis-config-view" class="acronis-view" style="display: none;">
+        <div class="section-header">
+            <h2>
+                <i class="fas fa-cog"></i>
+                Acronis Configuration
+            </h2>
+            <p class="section-description">
+                Configure your Acronis Cyber Protect Cloud API credentials to start monitoring your backup infrastructure.
+            </p>
+        </div>
+
+        <div class="config-form">
+            <div class="form-card">
+                <div class="form-header">
+                    <h4>API Configuration</h4>
+                </div>
+                
+                <form id="acronis-config-form">
+                    <div class="form-section">
+                        <h5>Connection Settings</h5>
+                        
+                        <div class="form-group">
+                            <label for="acronis-base-url" class="form-label required">Base URL</label>
+                            <input type="url" id="acronis-base-url" name="base_url" class="form-control" 
+                                   placeholder="https://ecs.evolumia.cloud/api/" required>
+                            <div class="invalid-feedback"></div>
+                            <div class="form-help">The base URL for your Acronis Cyber Protect Cloud API endpoint</div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="acronis-client-id" class="form-label required">Client ID</label>
+                            <input type="text" id="acronis-client-id" name="client_id" class="form-control" 
+                                   placeholder="your-client-id" required>
+                            <div class="invalid-feedback"></div>
+                            <div class="form-help">Your Acronis API client identifier</div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="acronis-client-secret" class="form-label required">Client Secret</label>
+                            <input type="password" id="acronis-client-secret" name="client_secret" class="form-control" 
+                                   placeholder="your-client-secret" required>
+                            <div class="invalid-feedback"></div>
+                            <div class="form-help">Your Acronis API client secret (will be stored securely)</div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="acronis-grant-type" class="form-label">Grant Type</label>
+                            <select id="acronis-grant-type" name="grant_type" class="form-control">
+                                <option value="client_credentials" selected>Client Credentials</option>
+                            </select>
+                            <div class="invalid-feedback"></div>
+                            <div class="form-help">OAuth2 grant type for authentication</div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <div class="form-actions-left">
+                            <button type="button" id="test-connection-btn" class="btn btn-outline">
+                                <i class="fas fa-plug"></i>
+                                Test Connection
+                            </button>
+                        </div>
+                        <div class="form-actions-right">
+                            <button type="button" id="cancel-config-btn" class="btn btn-outline">Cancel</button>
+                            <button type="submit" id="save-config-btn" class="btn btn-primary">
+                                <i class="fas fa-save"></i>
+                                Save Configuration
+                            </button>
+                        </div>
+                    </div>
+                </form>
+                
+                <!-- Test Result Display -->
+                <div id="connection-test-result" class="test-result" style="display: none;">
+                    <div class="test-result-content">
+                        <i class="test-result-icon fas fa-spinner fa-spin"></i>
+                        <span class="test-result-message">Testing connection...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard View -->
+    <div id="acronis-dashboard-view" class="acronis-view">
+        <div class="section-header">
+            <h2>
+                <i class="fas fa-shield-alt"></i>
+                Acronis Backup Management
+            </h2>
+            <p class="section-description">
+                Monitor and manage your Acronis Cyber Protect Cloud backup infrastructure.
+            </p>
+        </div>
+
+        <!-- Configuration Actions -->
+        <div class="config-header">
+            <div class="config-title">
+                <h3>
+                    <i class="fas fa-tachometer-alt"></i>
+                    Backup Dashboard
+                </h3>
+                <p class="config-description">
+                    Overview of your backup agents and recent backup activities.
+                </p>
+            </div>
+            <div class="nodes-actions">
+                <button id="acronis-config-btn" class="btn btn-outline">
+                    <i class="fas fa-cog"></i>
+                    Configure
+                </button>
+                <button id="refresh-acronis-btn" class="btn btn-outline btn-sm">
+                    <i class="fas fa-sync-alt"></i>
+                    Refresh
+                </button>
+                <div class="auto-refresh-toggle">
+                    <label class="form-check">
+                        <input type="checkbox" id="auto-refresh-acronis-toggle" class="form-check-input" checked>
+                        <span class="form-check-label">Auto-refresh</span>
+                    </label>
+                </div>
+                <div id="refresh-acronis-indicator" class="refresh-indicator" style="display: none;">
+                    <i class="fas fa-circle"></i>
+                    <span>Updating...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics Cards -->
+        <div id="acronis-statistics" class="statistics-section">
+            <div class="statistics-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="total-backups">--</div>
+                        <div class="stat-label">Total Backups</div>
+                    </div>
+                </div>
+                
+                <div class="stat-card success">
+                    <div class="stat-icon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="successful-backups">--</div>
+                        <div class="stat-label">Successful</div>
+                    </div>
+                </div>
+                
+                <div class="stat-card error">
+                    <div class="stat-icon">
+                        <i class="fas fa-exclamation-circle"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="failed-backups">--</div>
+                        <div class="stat-label">Failed</div>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-server"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="total-agents">--</div>
+                        <div class="stat-label">Active Agents</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div id="acronis-charts" class="charts-section">
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h4>Backup Success Rate</h4>
+                    </div>
+                    <div class="chart-container">
+                        <div id="backup-success-chart" class="chart-placeholder">
+                            <div class="chart-loading">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <span>Loading chart...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h4>Backup Frequency</h4>
+                    </div>
+                    <div class="chart-container">
+                        <div id="backup-frequency-chart" class="chart-placeholder">
+                            <div class="chart-loading">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <span>Loading chart...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Agents Grid -->
+        <div id="acronis-agents" class="agents-section">
+            <div class="agents-header">
+                <h4>
+                    <i class="fas fa-list"></i>
+                    Backup Agents
+                    <span id="agents-count-badge" class="count-badge">0</span>
+                </h4>
+            </div>
+            
+            <div id="agents-container" class="cards-grid">
+                <!-- Agent cards will be loaded here -->
+            </div>
+            
+            <!-- Loading State -->
+            <div id="agents-loading" class="loading-placeholder">
+                <i class="fas fa-spinner fa-spin"></i>
+                Loading agents...
+            </div>
+            
+            <!-- Empty State -->
+            <div id="agents-empty-state" class="empty-state" style="display: none;">
+                <div class="empty-state-content">
+                    <i class="fas fa-shield-alt empty-state-icon"></i>
+                    <h5>No Agents Found</h5>
+                    <p>No backup agents are currently configured, or they couldn't be loaded.</p>
+                    <button id="retry-agents-btn" class="btn btn-primary">
+                        <i class="fas fa-sync-alt"></i>
+                        Retry Loading
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Backup Details View -->
+    <div id="acronis-details-view" class="acronis-view" style="display: none;">
+        <div class="details-header">
+            <div class="details-title">
+                <h3>
+                    <i class="fas fa-info-circle"></i>
+                    <span id="details-agent-name">Agent Backup Details</span>
+                </h3>
+                <p class="details-description">
+                    Detailed backup information and activities for the selected agent.
+                </p>
+            </div>
+            <div class="details-actions">
+                <button id="back-to-dashboard-btn" class="btn btn-outline">
+                    <i class="fas fa-arrow-left"></i>
+                    Torna indietro
+                </button>
+                <button id="refresh-details-btn" class="btn btn-outline btn-sm">
+                    <i class="fas fa-sync-alt"></i>
+                    Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Agent Info -->
+        <div id="agent-info" class="agent-info-section">
+            <div class="agent-info-card">
+                <div class="agent-info-header">
+                    <div class="agent-info-title">
+                        <h4 id="agent-hostname">--</h4>
+                        <div class="agent-status">
+                            <span class="status-indicator" id="agent-status">--</span>
+                        </div>
+                    </div>
+                    <div class="agent-details">
+                        <div class="agent-detail">
+                            <span class="detail-label">Agent ID:</span>
+                            <span class="detail-value" id="agent-id">--</span>
+                        </div>
+                        <div class="agent-detail">
+                            <span class="detail-label">Tenant ID:</span>
+                            <span class="detail-value" id="agent-tenant">--</span>
+                        </div>
+                        <div class="agent-detail">
+                            <span class="detail-label">Platform:</span>
+                            <span class="detail-value" id="agent-platform">--</span>
+                        </div>
+                        <div class="agent-detail">
+                            <span class="detail-label">Uptime:</span>
+                            <span class="detail-value" id="agent-uptime">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Backup List -->
+        <div id="backup-list" class="backup-list-section">
+            <div class="backup-list-header">
+                <h4>
+                    <i class="fas fa-history"></i>
+                    Backup History
+                    <span id="backups-count-badge" class="count-badge">0</span>
+                </h4>
+            </div>
+            
+            <div id="backups-container" class="backups-container">
+                <!-- Backup items will be loaded here -->
+            </div>
+            
+            <!-- Loading State -->
+            <div id="backups-loading" class="loading-placeholder">
+                <i class="fas fa-spinner fa-spin"></i>
+                Loading backup details...
+            </div>
+            
+            <!-- Empty State -->
+            <div id="backups-empty-state" class="empty-state" style="display: none;">
+                <div class="empty-state-content">
+                    <i class="fas fa-history empty-state-icon"></i>
+                    <h5>No Backups Found</h5>
+                    <p>This agent doesn't have any backup records, or they couldn't be loaded.</p>
+                    <button id="retry-backups-btn" class="btn btn-primary">
+                        <i class="fas fa-sync-alt"></i>
+                        Retry Loading
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div><!
+-- Agent Card Template -->
+<template id="agent-card-template">
+    <div class="node-card agent-card" data-agent-id="">
+        <div class="node-card-header">
+            <div class="node-info">
+                <h5 class="node-name">
+                    <i class="fas fa-server"></i>
+                    <span class="agent-hostname">--</span>
+                </h5>
+                <div class="node-status">
+                    <span class="status-indicator agent-status">--</span>
+                </div>
+            </div>
+            <div class="node-actions">
+                <button class="btn btn-link view-details-btn" title="View Details">
+                    <i class="fas fa-info-circle"></i>
+                    View Details
+                </button>
+            </div>
+        </div>
+        
+        <div class="node-card-body">
+            <div class="agent-details">
+                <div class="agent-detail">
+                    <span class="detail-label">Agent ID:</span>
+                    <span class="detail-value agent-id">--</span>
+                </div>
+                <div class="agent-detail">
+                    <span class="detail-label">Tenant ID:</span>
+                    <span class="detail-value agent-tenant">--</span>
+                </div>
+                <div class="agent-detail">
+                    <span class="detail-label">Platform:</span>
+                    <span class="detail-value agent-platform">--</span>
+                </div>
+                <div class="agent-detail">
+                    <span class="detail-label">Uptime:</span>
+                    <span class="detail-value agent-uptime">--</span>
+                </div>
+            </div>
+            
+            <!-- Backup Statistics Chart -->
+            <div class="agent-chart-container">
+                <div class="agent-chart" data-chart-id="">
+                    <div class="chart-placeholder">
+                        <div class="no-backups-message" style="display: none;">
+                            <i class="fas fa-info-circle"></i>
+                            <span>No Backups</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- Backup Item Template -->
+<template id="backup-item-template">
+    <div class="backup-item" data-backup-id="">
+        <div class="backup-header">
+            <div class="backup-info">
+                <div class="backup-time">
+                    <i class="fas fa-clock"></i>
+                    <span class="backup-started">--</span>
+                    <span class="backup-duration">--</span>
+                </div>
+                <div class="backup-status">
+                    <span class="backup-state">--</span>
+                    <span class="backup-result">--</span>
+                </div>
+            </div>
+            <div class="backup-actions">
+                <button class="btn btn-link expand-backup-btn" title="Show Activities">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="backup-details">
+            <div class="backup-metrics">
+                <div class="backup-metric">
+                    <span class="metric-label">Mode:</span>
+                    <span class="metric-value backup-mode">--</span>
+                </div>
+                <div class="backup-metric">
+                    <span class="metric-label">Data Saved:</span>
+                    <span class="metric-value backup-size">--</span>
+                </div>
+                <div class="backup-metric">
+                    <span class="metric-label">Completed:</span>
+                    <span class="metric-value backup-completed">--</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Activities Section (Expandable) -->
+        <div class="backup-activities" style="display: none;">
+            <div class="activities-header">
+                <h6>
+                    <i class="fas fa-list"></i>
+                    Activities
+                </h6>
+            </div>
+            <div class="activities-container">
+                <!-- Activities will be loaded here -->
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- Activity Item Template -->
+<template id="activity-item-template">
+    <div class="activity-item">
+        <div class="activity-info">
+            <span class="activity-name">--</span>
+            <span class="activity-status">--</span>
+        </div>
+        <div class="activity-time">--</div>
+    </div>
+</template>

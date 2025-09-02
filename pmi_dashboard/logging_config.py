@@ -184,6 +184,28 @@ def setup_logging(app, log_level=None):
     perf_handler.addFilter(context_filter)
     perf_logger.addHandler(perf_handler)
     
+    # Acronis Module Logger
+    acronis_logger = logging.getLogger('pmi_dashboard.acronis')
+    acronis_logger.setLevel(log_level)
+    acronis_logger.handlers.clear()
+    
+    acronis_handler = logging.handlers.RotatingFileHandler(
+        os.path.join(log_dir, 'acronis.log'),
+        maxBytes=10*1024*1024,  # 10MB
+        backupCount=5
+    )
+    acronis_handler.setFormatter(detailed_formatter)
+    acronis_handler.addFilter(context_filter)
+    acronis_logger.addHandler(acronis_handler)
+    
+    # Console handler for Acronis in development
+    if app.config.get('DEBUG'):
+        acronis_console_handler = logging.StreamHandler()
+        acronis_console_handler.setFormatter(logging.Formatter(
+            '%(asctime)s [%(levelname)s] ACRONIS: %(message)s'
+        ))
+        acronis_logger.addHandler(acronis_console_handler)
+    
     # Set up Flask's logger
     app.logger.handlers.clear()
     app.logger.addHandler(app_handler)
@@ -194,7 +216,7 @@ def setup_logging(app, log_level=None):
     app_logger.info(f"Log level: {logging.getLevelName(log_level)}")
     app_logger.info(f"Log directory: {log_dir}")
     
-    return app_logger, error_logger, api_logger, security_logger, perf_logger
+    return app_logger, error_logger, api_logger, security_logger, perf_logger, acronis_logger
 
 
 def log_api_request(logger, method: str, endpoint: str, status_code: int, 

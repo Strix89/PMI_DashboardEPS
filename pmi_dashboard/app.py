@@ -73,7 +73,7 @@ def create_app():
     Config.init_app(app)
     
     # Set up comprehensive logging
-    app_logger, error_logger, api_logger, security_logger, perf_logger = setup_logging(app)
+    app_logger, error_logger, api_logger, security_logger, perf_logger, acronis_logger = setup_logging(app)
     
     # Store loggers in app context for easy access
     app.app_logger = app_logger
@@ -81,6 +81,7 @@ def create_app():
     app.api_logger = api_logger
     app.security_logger = security_logger
     app.perf_logger = perf_logger
+    app.acronis_logger = acronis_logger
     
     # Global error handlers with enhanced logging
     @app.errorhandler(Exception)
@@ -241,6 +242,10 @@ def create_app():
     # Register blueprints
     from proxmox.routes import proxmox_bp
     app.register_blueprint(proxmox_bp)
+    
+    from acronis.routes import acronis_bp
+    app.register_blueprint(acronis_bp)
+    app_logger.info("Acronis blueprint registered successfully")
     
     @app.route('/')
     def index():

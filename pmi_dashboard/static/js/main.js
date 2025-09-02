@@ -103,7 +103,7 @@ class PMIDashboard {
         }
         
         // Handle development tabs
-        if (['health', 'acronis', 'anomaly'].includes(tabName)) {
+        if (['health', 'anomaly'].includes(tabName)) {
             this.showDevelopmentMessage(tabName);
             return;
         }
@@ -142,17 +142,32 @@ class PMIDashboard {
         const tabDisplayName = tabName.toUpperCase();
         
         // Use the enhanced notification system if available
-        if (typeof showInfo !== 'undefined') {
+        if (window.notificationSystem) {
+            window.notificationSystem.showInfo(`${tabDisplayName} module is under development`, {
+                duration: 3000,
+                helpText: 'This feature will be available in a future release'
+            });
+        } else if (typeof showInfo !== 'undefined') {
             showInfo(`${tabDisplayName} module is under development`, {
                 duration: 3000
             });
         } else {
-            // Fallback to basic notification
-            this.showNotification(
-                `${tabDisplayName} module is under development`,
-                'info',
-                3000
-            );
+            // Fallback to console logging
+            console.info(`${tabDisplayName} module is under development`);
+        }
+    }
+
+    /**
+     * Basic notification fallback method
+     * @param {string} message - Message text
+     * @param {string} type - Message type
+     * @param {number} duration - Display duration
+     */
+    showNotification(message, type = 'info', duration = 5000) {
+        if (window.notificationSystem) {
+            return window.notificationSystem.show(message, type, duration);
+        } else {
+            console.log(`[${type.toUpperCase()}] ${message}`);
         }
     }
     
@@ -787,9 +802,45 @@ let dashboard;
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
         dashboard = new PMIDashboard();
+        initializeNotificationSystem();
     });
 } else {
     dashboard = new PMIDashboard();
+    initializeNotificationSystem();
+}
+
+/**
+ * Initialize the notification system for global use
+ */
+function initializeNotificationSystem() {
+    // Ensure notification system is available globally
+    if (typeof NotificationSystem !== 'undefined' && !window.notificationSystem) {
+        window.notificationSystem = new NotificationSystem();
+        console.log('Global notification system initialized');
+    }
+    
+    // Create convenience functions for backward compatibility
+    if (window.notificationSystem) {
+        window.showNotification = (message, type, duration, options) => {
+            return window.notificationSystem.show(message, type, duration, options);
+        };
+        
+        window.showSuccess = (message, options) => {
+            return window.notificationSystem.showSuccess(message, options);
+        };
+        
+        window.showError = (message, options) => {
+            return window.notificationSystem.showError(message, options);
+        };
+        
+        window.showWarning = (message, options) => {
+            return window.notificationSystem.showWarning(message, options);
+        };
+        
+        window.showInfo = (message, options) => {
+            return window.notificationSystem.showInfo(message, options);
+        };
+    }
 }
 
 // Export for use in other modules

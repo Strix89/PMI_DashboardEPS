@@ -88,7 +88,6 @@
                                 aria-selected="false">
                                 <i class="fas fa-shield-alt"></i>
                                 <span class="nav-text">ACRONIS</span>
-                                <span class="dev-badge">DEV</span>
                             </button>
                         </li>
                         <li class="nav-item">
@@ -136,11 +135,15 @@
     <script src="{{ url_for('static', filename='js/node-dashboard.js') }}"></script>
     <script src="{{ url_for('static', filename='js/resources.js') }}"></script>
     
+    <!-- Acronis Backup Management -->
+    <script src="{{ url_for('static', filename='js/acronis-config.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/acronis-charts.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/acronis.js') }}"></script>
+    
     <!-- Real-time Metrics System -->
     <script src="{{ url_for('static', filename='js/metrics-visualizer.js') }}"></script>
     <script src="{{ url_for('static', filename='js/metrics-monitor.js') }}"></script>
     <script src="{{ url_for('static', filename='js/resource-manager.js') }}"></script>
-</script>
     <script src="{{ url_for('static', filename='js/metrics-init.js') }}"></script>
 
     {% block scripts %}{% endblock %}

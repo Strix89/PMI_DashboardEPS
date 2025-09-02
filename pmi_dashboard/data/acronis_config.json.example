@@ -1,0 +1,6 @@
+{
+  "base_url": "https://ecs.evolumia.cloud/api/",
+  "client_id": "your-client-id-here",
+  "client_secret": "your-client-secret-here",
+  "grant_type": "client_credentials"
+}

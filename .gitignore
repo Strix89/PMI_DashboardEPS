@@ -35,7 +35,9 @@ network_discovery/results/*
 CruscottoProxmox.html
 pmi_dashboard/__pycache/
 pmi_dashboard/proxmox/__pycache__/
+pmi_dashboard/acronis/__pycache__/
 pmi_dashboard/proxmox/data/proxomox_config.json
+pmi_dashboard/logs/*
 
 # Application Generated Files
 logs/*.log
