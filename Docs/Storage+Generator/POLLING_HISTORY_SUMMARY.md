@@ -12,7 +12,7 @@ Aggiunta al file `seed_database.py` per generare cronologia di polling realistic
 
 - **Frequenza**: 1 polling ogni minuto per ogni asset
 - **Metriche generate**:
-  - `availability_status`: 100.0 (UP), 50.0 (DEGRADED), 0.0 (DOWN)
+  - `availability_status`: 1.0 (UP), 0.0 (DOWN)
   - `response_time_ms`: Tempo di risposta in millisecondi
 
 ### 2. Pattern di Disponibilità Realistici

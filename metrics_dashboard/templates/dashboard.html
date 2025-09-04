@@ -1,0 +1,1306 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Availability Dashboard - Monitoraggio</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #ff8c00;        /* Arancione dominante */
+            --secondary-color: #2c3e50;
+            --success-color: #27ae60;
+            --warning-color: #ff6b35;        /* Arancione warning */
+            --danger-color: #e74c3c;
+            --light-bg: #fafafa;             /* Sfondo più chiaro */
+            --dark-bg: #1a1a1a;             /* Scuro più profondo */
+            --text-light: #2c3e50;
+            --text-dark: #f0f0f0;           /* Testo scuro più leggibile */
+            --accent-orange: #ff8c00;       /* Arancione accent */
+            --card-light: #ffffff;          /* Card chiare */
+            --card-dark: #2a2a2a;           /* Card scure più leggibili */
+            --timeline-text-light: #4a5568; /* Testo timeline tema chiaro */
+            --timeline-text-dark: #e2e8f0;  /* Testo timeline tema scuro */
+        }
+
+        [data-theme="dark"] {
+            --light-bg: var(--dark-bg);
+            --text-light: var(--text-dark);
+            --card-light: var(--card-dark);
+            background-color: var(--dark-bg);
+            color: var(--text-dark);
+        }
+
+        [data-theme="dark"] .card {
+            background-color: var(--card-dark);
+            border: 1px solid #404040;
+            color: var(--text-dark);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        [data-theme="dark"] .navbar {
+            background-color: #2d2d2d !important;
+            border-bottom: 2px solid var(--accent-orange);
+        }
+
+        [data-theme="dark"] .btn-outline-secondary {
+            color: var(--text-dark);
+            border-color: #555;
+        }
+
+        [data-theme="dark"] .btn-outline-secondary:hover {
+            background-color: var(--accent-orange);
+            border-color: var(--accent-orange);
+            color: #fff;
+        }
+        
+        /* Bottoni tema arancione */
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-orange), #ff6b35);
+            border-color: var(--accent-orange);
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #e67e00, var(--accent-orange));
+            border-color: #e67e00;
+        }
+        
+        .btn-control:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        body {
+            background-color: var(--light-bg);
+            color: var(--text-light);
+            transition: all 0.3s ease;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .navbar {
+            box-shadow: 0 4px 20px rgba(255, 140, 0, 0.15);
+            background: linear-gradient(135deg, #ff8c00, #ff6b35) !important;
+            border-bottom: none;
+        }
+
+        .card {
+            background-color: var(--card-light);
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .theme-toggle {
+            margin-left: auto;
+        }
+
+        .health-score-card {
+            background: linear-gradient(135deg, #c5c5c5, #808080);
+            color: white;
+            border-radius: 24px;
+            padding: 3rem;
+            text-align: center;
+            margin-bottom: 2.5rem;
+            box-shadow: 0 12px 40px rgba(255, 140, 0, 0.25);
+            border: 3px solid #ffe4cc; /* Arancione molto chiaro per tema chiaro */
+            position: relative;
+            overflow: hidden;
+        }
+
+        [data-theme="dark"] .health-score-card {
+            border-color: rgba(255, 140, 0, 0.3); /* Arancione più intenso per tema scuro */
+        }
+
+        .health-score-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+            transform: rotate(45deg);
+            animation: shimmer 3s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+            100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+        }
+
+        .availability-percentage {
+            font-size: 4rem;
+            font-weight: 900;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.4);
+            margin-bottom: 0.5rem;
+            line-height: 1;
+        }
+
+        .availability-label {
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 500;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .service-card {
+            border: none;
+            border-radius: 18px;
+            background: linear-gradient(145deg, #ffffff, #f8f9ff);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            margin-bottom: 2rem;
+            border: 1px solid rgba(255, 140, 0, 0.1);
+        }
+
+        .service-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 16px 48px rgba(255, 140, 0, 0.15);
+            border-color: rgba(255, 140, 0, 0.3);
+        }
+
+        [data-theme="dark"] .service-card {
+            background: linear-gradient(145deg, #2a2a2a, #1e1e2e);
+            border-color: rgba(255, 140, 0, 0.2);
+        }
+
+        [data-theme="dark"] .service-card:hover {
+            box-shadow: 0 16px 48px rgba(255, 140, 0, 0.25);
+        }
+
+        .status-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-weight: 600;
+            margin-left: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-badge.up {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+        }
+
+        .status-badge.good {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            border: none;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+        }
+
+        .status-badge.down {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+            border: none;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+        }
+
+        .status-badge.degraded {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+            border: none;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+        }
+
+        .status-badge.unknown {
+            background: linear-gradient(135deg, #6b7280, #4b5563);
+            color: white;
+            border: none;
+            box-shadow: 0 2px 8px rgba(107, 114, 128, 0.3);
+        }
+
+        [data-theme="dark"] .status-badge.up {
+            background: linear-gradient(135deg, #10b981, #047857);
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+        }
+
+        [data-theme="dark"] .status-badge.good {
+            background: linear-gradient(135deg, #3b82f6, #1e40af);
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+        }
+
+        [data-theme="dark"] .status-badge.down {
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+        }
+
+        [data-theme="dark"] .status-badge.degraded {
+            background: linear-gradient(135deg, #f59e0b, #b45309);
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+        }
+
+        [data-theme="dark"] .status-badge.unknown {
+            background: linear-gradient(135deg, #6b7280, #374151);
+            box-shadow: 0 2px 8px rgba(107, 114, 128, 0.4);
+        }
+
+        .gauge-container {
+            position: relative;
+            width: 200px;
+            height: 120px;
+            margin: 0 auto;
+        }
+
+        .echarts-gauge {
+            width: 100%;
+            height: 100%;
+        }
+
+        .gauge-value {
+            position: absolute;
+            top: 70%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        .status-excellent {
+            background-color: var(--success-color);
+        }
+
+        .status-good {
+            background-color: #2ecc71;
+        }
+
+        .status-degraded {
+            background-color: var(--warning-color);
+        }
+
+        .status-critical {
+            background-color: var(--danger-color);
+        }
+
+        .metrics-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #dee2e6;
+        }
+
+        [data-theme="dark"] .metrics-info {
+            border-top-color: #5a6c7d;
+        }
+
+        .metric-value {
+            text-align: center;
+        }
+
+        .metric-label {
+            font-size: 0.9rem;
+            color: #6c757d;
+            font-weight: 600;
+        }
+
+        .metric-number {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .real-time-indicator {
+            position: fixed;
+            top: 20px;
+            right: 80px;
+            background: var(--success-color);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            z-index: 1000;
+        }
+
+        .real-time-indicator.updating {
+            background: var(--warning-color);
+        }
+
+        .real-time-indicator::before {
+            content: '●';
+            margin-right: 5px;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+
+        .control-panel {
+            background: linear-gradient(135deg, #f8fafc, #fff5eb);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 2.5rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(255, 140, 0, 0.1);
+        }
+
+        [data-theme="dark"] .control-panel {
+            background: linear-gradient(135deg, #2a2a2a, #1e1e2e);
+            border-color: rgba(255, 140, 0, 0.2);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn-control {
+            margin: 0 3px;
+            font-size: 0.85rem;
+            padding: 0.4rem 0.8rem;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            border: none;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #ff8c00, #ff6b35);
+            border: none;
+            box-shadow: 0 2px 8px rgba(255, 140, 0, 0.3);
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #e67e00, #e55a2b);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255, 140, 0, 0.4);
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #6b7280, #4b5563);
+            border: none;
+            box-shadow: 0 2px 8px rgba(107, 114, 128, 0.3);
+        }
+        
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #5d6670, #3f4651);
+            transform: translateY(-1px);
+        }
+
+        .timeline-info {
+            font-size: 1rem;
+            color: var(--timeline-text-light);
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #ff8c00, #ff6b35);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        [data-theme="dark"] .timeline-info {
+            color: var(--timeline-text-dark);
+            background: linear-gradient(135deg, #ff8c00, #ff6b35);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .timeline-timestamp {
+            font-size: 0.85rem;
+            color: var(--timeline-text-light);
+            font-weight: 500;
+        }
+
+        [data-theme="dark"] .timeline-timestamp {
+            color: var(--timeline-text-dark);
+        }
+
+        .btn-control {
+            margin: 0 5px;
+        }
+
+        .loading-spinner-small {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .config-button-container {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        .config-button {
+            background: var(--secondary-color);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 1.5rem;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .config-button:hover {
+            background: #34495e;
+            transform: scale(1.1);
+        }
+
+        .real-time-indicator-small {
+            background: linear-gradient(45deg, #ff6b35, var(--accent-orange));
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            letter-spacing: 1px;
+            box-shadow: 0 2px 8px rgba(255, 107, 53, 0.4);
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body data-theme="light">
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-tachometer-alt me-2"></i>
+                Availability Dashboard
+            </a>
+            <div class="navbar-nav ms-auto d-flex flex-row align-items-center">
+                <span class="navbar-text me-3">
+                    <i class="fas fa-clock me-1"></i>
+                    <span id="current-time">--:--:--</span>
+                </span>
+                <button class="btn btn-outline-light theme-toggle" onclick="toggleTheme()">
+                    <i class="fas fa-moon" id="theme-icon"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4">
+        <!-- Health Score -->
+        <div class="row">
+            <div class="col-12">
+                <div class="health-score-card">
+                    <h2><i class="fas fa-tachometer-alt me-2"></i>System Availability Dashboard</h2>
+                    <div class="row justify-content-center align-items-center">
+                        <div class="col-md-6 col-lg-4">
+                            <div class="aggregated-gauge-container" style="position: relative; width: 300px; height: 200px; margin: 0 auto;">
+                                <div id="aggregated-gauge" style="width: 300px; height: 200px;"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-4">
+                            <div class="text-center">
+                                <div class="availability-percentage" id="availability-percentage">---%</div>
+                                <p class="availability-label">System Availability</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Control Panel -->
+        <div class="row">
+            <div class="col-12">
+                <div class="control-panel">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <div class="timeline-info" id="timeline-info">
+                                Timeline: Caricamento...
+                            </div>
+                            <small class="timeline-timestamp">
+                                <i class="fas fa-clock me-1"></i>Istante visualizzato: 
+                                <span id="current-timestamp">--</span>
+                            </small>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <div class="btn-group me-2" role="group">
+                                <button class="btn btn-primary btn-sm btn-control" onclick="toggleRealTime()" id="realtime-btn">
+                                    <i class="fas fa-pause"></i> Pausa
+                                </button>
+                                <button class="btn btn-secondary btn-sm btn-control" onclick="resetTimeline()">
+                                    <i class="fas fa-refresh"></i> Reset
+                                </button>
+                            </div>
+                            <div class="btn-group" role="group">
+                                <button class="btn btn-info btn-sm btn-control" onclick="speedUp()">
+                                    <i class="fas fa-fast-forward"></i> <span id="speed-display">1x</span>
+                                </button>
+                                <button class="btn btn-warning btn-sm btn-control" onclick="slowDown()">
+                                    <i class="fas fa-backward"></i>
+                                </button>
+                            </div>
+                            <div class="btn-group" role="group">
+                                <button class="btn btn-success btn-sm btn-control" onclick="setSpeed(10)" title="Velocità 10x">
+                                    <i class="fas fa-bolt"></i> 10x
+                                </button>
+                                <button class="btn btn-warning btn-sm btn-control" onclick="setSpeed(100)" title="Velocità 100x">
+                                    <i class="fas fa-rocket"></i> 100x
+                                </button>
+                                <button class="btn btn-danger btn-sm btn-control" onclick="setSpeed(500)" title="Velocità Massima 500x">
+                                    <i class="fas fa-fire"></i> MAX
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Services Grid -->
+        <div class="row" id="services-grid">
+            <!-- I servizi verranno popolati dinamicamente -->
+        </div>
+    </div>
+
+    <!-- Config Button with LIVE Badge -->
+    <div class="config-button-container">
+        <div id="real-time-indicator" class="real-time-indicator-small">
+            LIVE
+        </div>
+        <button class="config-button" onclick="goToConfig()" title="Modifica Configurazione">
+            <i class="fas fa-cog"></i>
+        </button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // MAPPING NOMI: Frontend (leggibili) -> Database (ID tecnici)
+        const SERVICE_NAME_MAPPING = {
+            'Proxmox Web Interface': 'svc-pveproxy-01',
+            'MySQL Database': 'svc-mysql-101',
+            'Reporting Service': 'svc-reporting-101',
+            'Nginx Web Server': 'svc-nginx-102',
+            'PHP-FPM': 'svc-php-fpm-102',
+            'Apache Tomcat': 'svc-tomcat-103',
+            'Elasticsearch': 'svc-elasticsearch-103',
+            'Redis Cache': 'svc-redis-201',
+            'Prometheus': 'svc-prometheus-202',
+            'Grafana': 'svc-grafana-202',
+            'Bacula Backup': 'svc-bacula-physical-01',
+            'NFS Server': 'svc-nfs-physical-02',
+            'SMB/CIFS Server': 'svc-smb-physical-02',
+            'Jenkins CI/CD': 'svc-jenkins-104',
+            'GitLab Runner': 'svc-gitlab-runner-104',
+            'Postfix SMTP': 'svc-postfix-105',
+            'Dovecot IMAP': 'svc-dovecot-105'
+        };
+
+        let dashboardData = {};
+        let currentTimelineIndex = 0;
+        let maxTimelineIndex = 0;
+        let isRealTimeActive = true;
+        let baseUpdateSpeed = 60000; // 1 minuto base
+        let speedMultiplier = 1; // Moltiplicatore velocità (1x, 2x, 3x, ecc.)
+        let updateSpeed = baseUpdateSpeed;
+        let updateInterval;
+        let echartsInstances = {}; // ECharts instances
+        let startTimestamp = null; // Timestamp di partenza sincronizzato con ora reale
+        
+        // Inizializzazione
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDashboardData();
+            updateCurrentTime();
+            setInterval(updateCurrentTime, 1000);
+            
+            // Carica tema salvato
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme) {
+                document.body.setAttribute('data-theme', savedTheme);
+                document.getElementById('theme-icon').className = 
+                    savedTheme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+            }
+        });
+
+        // Gestione tema
+        function toggleTheme() {
+            const body = document.body;
+            const currentTheme = body.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            body.setAttribute('data-theme', newTheme);
+            
+            const icon = document.getElementById('theme-icon');
+            icon.className = newTheme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+            
+            localStorage.setItem('theme', newTheme);
+            
+            // Ricolora i grafici Chart.js
+            updateGaugeTheme();
+        }
+
+        // Aggiorna ora corrente
+        function updateCurrentTime() {
+            const now = new Date();
+            document.getElementById('current-time').textContent = now.toLocaleTimeString();
+        }
+
+        // Carica dati dashboard
+        async function loadDashboardData() {
+            try {
+                const response = await fetch('/get_dashboard_data');
+                const data = await response.json();
+                
+                if (data.success) {
+                    dashboardData = data;
+                    initializeDashboard();
+                    startRealTimeUpdates();
+                } else {
+                    console.error('Errore nel caricamento dei dati:', data.error);
+                    // Reindirizza alla configurazione se non ci sono dati
+                    window.location.href = '/';
+                }
+            } catch (error) {
+                console.error('Errore di connessione:', error);
+            }
+        }
+
+        // Inizializza dashboard
+        function initializeDashboard() {
+            // Calcola il massimo indice della timeline
+            maxTimelineIndex = 0;
+            Object.values(dashboardData.services).forEach(service => {
+                if (service.timeline && service.timeline.length > maxTimelineIndex) {
+                    maxTimelineIndex = service.timeline.length;
+                }
+            });
+            
+            // Sincronizza con ora reale - trova l'indice corrispondente all'ora attuale
+            syncWithCurrentTime();
+            
+            // Inizializza gauge aggregato
+            initializeAggregatedGauge();
+            
+            // Crea i servizi
+            createServicesGrid();
+            
+            // Aggiorna le informazioni della timeline
+            updateTimelineInfo();
+            
+            // Aggiorna i dati iniziali
+            updateDashboard();
+        }
+
+        // Sincronizza timeline con ora reale
+        function syncWithCurrentTime() {
+            const now = new Date();
+            let bestMatchIndex = 0;
+            
+            // Cerca nel primo servizio per determinare il range temporale dei dati
+            const firstService = Object.values(dashboardData.services)[0];
+            if (firstService && firstService.timeline && firstService.timeline.length > 0) {
+                // Ottieni il primo e ultimo timestamp dei dati
+                const firstTimestamp = new Date(firstService.timeline[0].timestamp);
+                const lastTimestamp = new Date(firstService.timeline[firstService.timeline.length - 1].timestamp);
+                
+                console.log(`📊 Range dati: ${firstTimestamp.toLocaleDateString()} - ${lastTimestamp.toLocaleDateString()}`);
+                console.log(`🕐 Data attuale: ${now.toLocaleDateString()}`);
+                
+                // Se i dati sono storici (più vecchi di 24 ore), usa l'ora corrispondente del giorno dei dati
+                if (now.getTime() - lastTimestamp.getTime() > 24 * 60 * 60 * 1000) {
+                    // Dati storici: trova l'orario corrispondente all'ora attuale
+                    const currentHour = now.getHours();
+                    const currentMinute = now.getMinutes();
+                    
+                    console.log(`⏰ Cercando orario ${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')} nei dati storici`);
+                    
+                    let bestMatchIndex = 0;
+                    let minTimeDiff = Infinity;
+                    
+                    firstService.timeline.forEach((item, index) => {
+                        if (item.timestamp) {
+                            const itemTime = new Date(item.timestamp);
+                            const itemHour = itemTime.getHours();
+                            const itemMinute = itemTime.getMinutes();
+                            
+                            // Calcola differenza in minuti dall'orario target
+                            const targetMinutes = currentHour * 60 + currentMinute;
+                            const itemMinutes = itemHour * 60 + itemMinute;
+                            const timeDiffMinutes = Math.abs(targetMinutes - itemMinutes);
+                            
+                            if (timeDiffMinutes < minTimeDiff) {
+                                minTimeDiff = timeDiffMinutes;
+                                bestMatchIndex = index;
+                            }
+                        }
+                    });
+                    
+                    currentTimelineIndex = bestMatchIndex;
+                    startTimestamp = new Date(firstService.timeline[bestMatchIndex].timestamp);
+                    console.log(`📅 Dati storici: sincronizzato con orario ${startTimestamp.toLocaleTimeString()} del ${startTimestamp.toLocaleDateString()}`);
+                } else {
+                    // Dati recenti: cerca timestamp vicino all'ora attuale
+                    let minTimeDiff = Infinity;
+                    
+                    firstService.timeline.forEach((item, index) => {
+                        if (item.timestamp) {
+                            const itemTime = new Date(item.timestamp);
+                            const timeDiff = Math.abs(now.getTime() - itemTime.getTime());
+                            
+                            if (timeDiff < minTimeDiff) {
+                                minTimeDiff = timeDiff;
+                                bestMatchIndex = index;
+                                startTimestamp = itemTime;
+                            }
+                        }
+                    });
+                    
+                    currentTimelineIndex = bestMatchIndex;
+                    console.log(`🕐 Dati recenti: sincronizzato con timestamp ${startTimestamp?.toLocaleString()}`);
+                }
+            }
+        }
+
+        // Crea la griglia dei servizi
+        function createServicesGrid() {
+            const container = document.getElementById('services-grid');
+            let html = '';
+            
+            Object.entries(dashboardData.services).forEach(([serviceName, serviceData]) => {
+                const serviceId = serviceName.replace(/\s+/g, '_').toLowerCase();
+                
+                html += `
+                    <div class="col-lg-6 col-xl-4">
+                        <div class="card service-card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0 d-flex align-items-center">
+                                    <span class="status-indicator" id="status-${serviceId}"></span>
+                                    ${serviceName}
+                                    <span class="status-badge unknown" id="status-badge-${serviceId}">--</span>
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="gauge-container">
+                                    <div class="echarts-gauge" id="gauge-${serviceId}"></div>
+                                </div>
+                                <div class="metrics-info">
+                                    <div class="metric-value">
+                                        <div class="metric-label">Pool Falliti</div>
+                                        <div class="metric-number text-danger" id="failed-${serviceId}">--</div>
+                                    </div>
+                                    <div class="metric-value">
+                                        <div class="metric-label">Max Attesi</div>
+                                        <div class="metric-number text-warning" id="expected-${serviceId}">--</div>
+                                    </div>
+                                    <div class="metric-value">
+                                        <div class="metric-label">Peso</div>
+                                        <div class="metric-number text-info" id="weight-${serviceId}">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+            
+            // Inizializza i gauge
+            Object.entries(dashboardData.services).forEach(([serviceName, serviceData]) => {
+                const serviceId = serviceName.replace(/\s+/g, '_').toLowerCase();
+                initializeGauge(serviceId);
+            });
+        }
+
+        // Inizializza gauge con ECharts
+        function initializeGauge(serviceId) {
+            const container = document.getElementById(`gauge-${serviceId}`);
+            if (!container) return;
+            
+            const chart = echarts.init(container);
+            
+            // Configura il gauge ECharts
+            const option = {
+                series: [{
+                    type: 'gauge',
+                    startAngle: 180,
+                    endAngle: 0,
+                    center: ['50%', '75%'],
+                    radius: '90%',
+                    min: 0,
+                    max: 100,
+                    precision: 1,
+                    splitNumber: 5,
+                    axisLine: {
+                        lineStyle: {
+                            width: 15,
+                            color: [
+                                [1, '#e6e6e6']  // Sfondo grigio chiaro per vedere la traccia
+                            ]
+                        }
+                    },
+                    progress: {
+                        show: true,
+                        width: 15,
+                        roundCap: true
+                    },
+                    pointer: {
+                        show: true,
+                        length: '60%',
+                        width: 4,
+                        itemStyle: {
+                            color: 'auto'
+                        }
+                    },
+                    axisLabel: {
+                        color: 'auto',
+                        fontSize: 10,
+                        distance: -40
+                    },
+                    axisTick: {
+                        distance: -25,
+                        splitNumber: 5,
+                        lineStyle: {
+                            width: 1,
+                            color: '#999'
+                        }
+                    },
+                    splitLine: {
+                        distance: -30,
+                        length: 8,
+                        lineStyle: {
+                            width: 2,
+                            color: '#999'
+                        }
+                    },
+                    title: {
+                        show: false
+                    },
+                    detail: {
+                        valueAnimation: true,
+                        width: '60%',
+                        lineHeight: 40,
+                        borderRadius: 8,
+                        offsetCenter: [0, '35%'],
+                        fontSize: 14,
+                        fontWeight: 'bold',
+                        formatter: '{value}%',
+                        color: 'auto'
+                    },
+                    data: [{
+                        value: 0,
+                        name: ''
+                    }]
+                }]
+            };
+            
+            chart.setOption(option);
+            echartsInstances[serviceId] = chart;
+            
+            // Ridimensiona quando cambia la finestra
+            window.addEventListener('resize', function() {
+                chart.resize();
+            });
+        }
+
+        // Aggiorna gauge usando ECharts
+        function updateGauge(serviceId, value) {
+            const chart = echartsInstances[serviceId];
+            if (!chart) return;
+            
+            // Determina il colore in base al valore
+            let progressColor;
+            if (value <= 50) progressColor = '#dc3545';      // Rosso per 0-50%
+            else if (value <= 70) progressColor = '#fd7e14'; // Arancione per 50-70%
+            else if (value <= 85) progressColor = '#ffc107'; // Giallo per 70-85%
+            else if (value <= 95) progressColor = '#20c997'; // Verde acqua per 85-95%
+            else progressColor = '#28a745';                  // Verde per 95-100%
+            
+            chart.setOption({
+                series: [{
+                    progress: {
+                        itemStyle: {
+                            color: progressColor
+                        }
+                    },
+                    data: [{
+                        value: value,
+                        name: ''
+                    }]
+                }]
+            });
+        }
+
+        // Crea e aggiorna tachimetro aggregato con ECharts
+        function initializeAggregatedGauge() {
+            const container = document.getElementById('aggregated-gauge');
+            if (!container) return;
+            
+            const chart = echarts.init(container);
+            
+            // Configura il gauge principale ECharts
+            const option = {
+                series: [{
+                    type: 'gauge',
+                    startAngle: 180,
+                    endAngle: 0,
+                    center: ['50%', '75%'],
+                    radius: '90%',
+                    min: 0,
+                    max: 100,
+                    precision: 1,
+                    splitNumber: 5,
+                    axisLine: {
+                        lineStyle: {
+                            width: 20,
+                            color: [
+                                [1, '#e6e6e6']  // Sfondo grigio chiaro per vedere la traccia
+                            ]
+                        }
+                    },
+                    progress: {
+                        show: true,
+                        width: 20,
+                        roundCap: true
+                    },
+                    pointer: {
+                        show: true,
+                        length: '60%',
+                        width: 6,
+                        itemStyle: {
+                            color: 'auto'
+                        }
+                    },
+                    axisLabel: {
+                        show: false  // Nascondi i valori numerici attorno al semicerchio
+                    },
+                    axisTick: {
+                        show: false  // Nascondi i tick marks
+                    },
+                    splitLine: {
+                        show: false  // Nascondi le linee di divisione
+                    },
+                    title: {
+                        show: false
+                    },
+                    detail: {
+                        show: false  // Nascondi il valore centrale, lo mostreremo affianco
+                    },
+                    data: [{
+                        value: 0,
+                        name: ''
+                    }]
+                }]
+            };
+            
+            chart.setOption(option);
+            echartsInstances['aggregated'] = chart;
+            
+            // Ridimensiona quando cambia la finestra
+            window.addEventListener('resize', function() {
+                chart.resize();
+            });
+        }
+
+        // Aggiorna tachimetro aggregato
+        function updateAggregatedGauge(value) {
+            const chart = echartsInstances['aggregated'];
+            if (!chart) return;
+            
+            // Determina il colore in base al valore
+            let progressColor;
+            if (value <= 50) progressColor = '#dc3545';      // Rosso per 0-50%
+            else if (value <= 70) progressColor = '#fd7e14'; // Arancione per 50-70%
+            else if (value <= 85) progressColor = '#ffc107'; // Giallo per 70-85%
+            else if (value <= 95) progressColor = '#20c997'; // Verde acqua per 85-95%
+            else progressColor = '#28a745';                  // Verde per 95-100%
+            
+            // Aggiorna il gauge
+            chart.setOption({
+                series: [{
+                    progress: {
+                        itemStyle: {
+                            color: progressColor
+                        }
+                    },
+                    data: [{
+                        value: value,
+                        name: ''
+                    }]
+                }]
+            });
+            
+            // Aggiorna il testo della percentuale affianco
+            const percentageElement = document.getElementById('availability-percentage');
+            if (percentageElement) {
+                percentageElement.textContent = `${value.toFixed(1)}%`;
+            }
+        }
+
+        // Aggiorna tema dei gauge ECharts
+        function updateGaugeTheme() {
+            // Determina il colore di sfondo basato sul tema
+            const isDark = document.body.getAttribute('data-theme') === 'dark';
+            const backgroundColor = isDark ? '#4a4a4a' : '#e6e6e6';
+            
+            Object.entries(echartsInstances).forEach(([serviceId, chart]) => {
+                if (chart) {
+                    // Aggiorna il colore di sfondo dell'axisLine
+                    const width = serviceId === 'aggregated' ? 20 : 15;
+                    chart.setOption({
+                        series: [{
+                            axisLine: {
+                                lineStyle: {
+                                    width: width,
+                                    color: [
+                                        [1, backgroundColor]
+                                    ]
+                                }
+                            }
+                        }]
+                    });
+                    chart.resize();
+                }
+            });
+        }
+
+        // Aggiorna dashboard
+        function updateDashboard() {
+            // Aggiorna health score
+            updateHealthScore();
+            
+            // Aggiorna servizi
+            Object.entries(dashboardData.services).forEach(([serviceName, serviceData]) => {
+                updateService(serviceName, serviceData);
+            });
+            
+            // Aggiorna informazioni timeline
+            updateTimelineInfo();
+        }
+
+        // Aggiorna health score
+        function updateHealthScore() {
+            let totalWeightedScore = 0;
+            let totalWeight = 0;
+            
+            Object.entries(dashboardData.services).forEach(([serviceName, serviceData]) => {
+                // Usa il peso dal serviceData invece che dal config
+                const weight = serviceData.weight || 0;
+                
+                if (serviceData.timeline && serviceData.timeline.length > currentTimelineIndex) {
+                    const currentData = serviceData.timeline[currentTimelineIndex];
+                    const availability = currentData.cumulative_percentage || 0;
+                    
+                    totalWeightedScore += availability * weight;
+                    totalWeight += weight;
+                }
+            });
+            
+            const healthScore = totalWeight > 0 ? totalWeightedScore / totalWeight : 0;
+            // Forza 1 cifra decimale
+            const preciseScore = parseFloat(healthScore.toFixed(1));
+            
+            // Aggiorna tachimetro aggregato Chart.js
+            updateAggregatedGauge(preciseScore);
+        }
+
+        // Aggiorna singolo servizio
+        function updateService(serviceName, serviceData) {
+            const serviceId = serviceName.replace(/\s+/g, '_').toLowerCase();
+            
+            if (!serviceData.timeline || serviceData.timeline.length <= currentTimelineIndex) {
+                return;
+            }
+            
+            const currentData = serviceData.timeline[currentTimelineIndex];
+            const availability = currentData.cumulative_percentage || 0;
+            const failedPollings = currentData.failures || 0;  // Corretto nome campo
+            const errorBudget = serviceData.error_budget || 0;
+            const weight = serviceData.weight || 0;  // Usa peso dal serviceData
+            
+            // Aggiorna gauge ECharts
+            updateGauge(serviceId, availability);
+            
+            // Aggiorna status indicator
+            const statusEl = document.getElementById(`status-${serviceId}`);
+            statusEl.className = 'status-indicator ';
+            if (availability >= 95) statusEl.className += 'status-excellent';
+            else if (availability >= 85) statusEl.className += 'status-good';
+            else if (availability >= 70) statusEl.className += 'status-degraded';
+            else statusEl.className += 'status-critical';
+            
+            // Aggiorna metriche
+            document.getElementById(`failed-${serviceId}`).textContent = failedPollings;
+            document.getElementById(`expected-${serviceId}`).textContent = errorBudget;
+            document.getElementById(`weight-${serviceId}`).textContent = weight.toFixed(3);
+            
+            // Aggiorna badge di status - DEBUG MIGLIORATO
+            const statusBadge = document.getElementById(`status-badge-${serviceId}`);
+            const statusType = currentData.status_type || 'unknown';
+            
+            // DEBUG: Log per verificare i dati
+            console.log(`🔍 Service: ${serviceName}, StatusType: "${statusType}", Data:`, currentData);
+            
+            // Rimuovi tutte le classi di status precedenti
+            statusBadge.className = 'status-badge';
+            
+            // Aggiungi la classe appropriata e imposta il testo
+            switch (statusType.toUpperCase()) {
+                case 'UP':
+                    statusBadge.classList.add('up');
+                    statusBadge.textContent = 'UP';
+                    break;
+                case 'GOOD':
+                    statusBadge.classList.add('good');
+                    statusBadge.textContent = 'GOOD';
+                    break;
+                case 'DOWN':
+                    statusBadge.classList.add('down');
+                    statusBadge.textContent = 'DOWN';
+                    break;
+                case 'DEGRADED':
+                    statusBadge.classList.add('degraded');
+                    statusBadge.textContent = 'DEGRADED';
+                    break;
+                default:
+                    statusBadge.classList.add('unknown');
+                    statusBadge.textContent = 'UNKNOWN';
+                    console.log(`⚠️  Status sconosciuto per ${serviceName}: "${statusType}"`);
+                    break;
+            }
+        }
+
+        // Aggiorna informazioni timeline
+        function updateTimelineInfo() {
+            if (maxTimelineIndex > 0) {
+                const currentTime = getCurrentTimestamp();
+                const progress = ((currentTimelineIndex + 1) / maxTimelineIndex * 100).toFixed(1);
+                
+                // Aggiorna info timeline
+                document.getElementById('timeline-info').innerHTML = `
+                    Timeline: ${currentTimelineIndex + 1}/${maxTimelineIndex} (${progress}%) 
+                    - Velocità: ${speedMultiplier}x
+                `;
+                
+                // Aggiorna timestamp corrente
+                document.getElementById('current-timestamp').textContent = currentTime;
+            }
+        }
+
+        // Ottieni timestamp corrente
+        function getCurrentTimestamp() {
+            // Prendi il primo servizio disponibile per ottenere il timestamp
+            const firstService = Object.values(dashboardData.services)[0];
+            if (firstService && firstService.timeline && firstService.timeline[currentTimelineIndex]) {
+                const timestamp = firstService.timeline[currentTimelineIndex].timestamp;
+                return new Date(timestamp).toLocaleString();
+            }
+            return 'N/A';
+        }
+
+        // Avvia aggiornamenti real-time
+        function startRealTimeUpdates() {
+            if (updateInterval) clearInterval(updateInterval);
+            
+            updateInterval = setInterval(() => {
+                if (isRealTimeActive && currentTimelineIndex < maxTimelineIndex - 1) {
+                    currentTimelineIndex++;
+                    updateDashboard();
+                    
+                    // Indica aggiornamento
+                    const indicator = document.getElementById('real-time-indicator');
+                    indicator.classList.add('updating');
+                    setTimeout(() => indicator.classList.remove('updating'), 500);
+                }
+            }, updateSpeed);
+        }
+
+        // Toggle real-time
+        function toggleRealTime() {
+            isRealTimeActive = !isRealTimeActive;
+            const btn = document.getElementById('realtime-btn');
+            
+            if (isRealTimeActive) {
+                btn.innerHTML = '<i class="fas fa-pause"></i> Pausa';
+                btn.className = 'btn btn-primary btn-sm btn-control';
+                startRealTimeUpdates(); // Riavvia gli aggiornamenti
+                console.log('▶️ Timeline riavviata');
+            } else {
+                btn.innerHTML = '<i class="fas fa-play"></i> Play';
+                btn.className = 'btn btn-success btn-sm btn-control';
+                console.log('⏸️ Timeline in pausa');
+            }
+        }
+
+        // Reset timeline alla sincronizzazione originale
+        function resetTimeline() {
+            currentTimelineIndex = 0;
+            speedMultiplier = 1;
+            updateSpeed = baseUpdateSpeed;
+            document.getElementById('speed-display').textContent = '1x';
+            syncWithCurrentTime();
+            updateDashboard();
+            if (isRealTimeActive) {
+                startRealTimeUpdates();
+            }
+            console.log('🔄 Timeline resettata');
+        }
+
+        // Aumenta velocità incrementalmente
+        function speedUp() {
+            speedMultiplier = Math.min(speedMultiplier + 1, 500); // Max 500x
+            updateSpeed = baseUpdateSpeed / speedMultiplier;
+            document.getElementById('speed-display').textContent = `${speedMultiplier}x`;
+            startRealTimeUpdates();
+            console.log(`⚡ Velocità aumentata a ${speedMultiplier}x (${updateSpeed}ms)`);
+        }
+
+        // Diminuisce velocità
+        function slowDown() {
+            speedMultiplier = Math.max(speedMultiplier - 1, 1); // Min 1x
+            updateSpeed = baseUpdateSpeed / speedMultiplier;
+            document.getElementById('speed-display').textContent = `${speedMultiplier}x`;
+            startRealTimeUpdates();
+            console.log(`🐌 Velocità ridotta a ${speedMultiplier}x (${updateSpeed}ms)`);
+        }
+
+        // Imposta velocità specifica
+        function setSpeed(speed) {
+            speedMultiplier = Math.max(1, Math.min(speed, 500)); // Tra 1x и 500x
+            updateSpeed = baseUpdateSpeed / speedMultiplier;
+            document.getElementById('speed-display').textContent = `${speedMultiplier}x`;
+            startRealTimeUpdates();
+            console.log(`🚀 Velocità impostata a ${speedMultiplier}x (${updateSpeed}ms)`);
+        }
+
+        // Vai a configurazione
+        function goToConfig() {
+            if (confirm('Sei sicuro di voler modificare la configurazione? Tutti i dati correnti andranno persi.')) {
+                window.location.href = '/reset_config';
+            }
+        }
+    </script>
+</body>
+</html>
