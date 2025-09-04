@@ -47,7 +47,7 @@ class AnalysisJobManager:
         self.job_progress = 0
         self.job_result = None
         
-    def start_analysis(self, config: Dict[str, Any]) -> str:
+    def start_analysis(self, config: Dict[str, Any], analysis_type: str = "availability") -> str:
         """Avvia l'analisi cumulativa in background"""
         if self.current_job and self.current_job.is_alive():
             return "Job già in esecuzione"
@@ -59,12 +59,12 @@ class AnalysisJobManager:
         # Avvia il thread per l'analisi
         self.current_job = threading.Thread(
             target=self._run_analysis, 
-            args=(config,)
+            args=(config, analysis_type)
         )
         self.current_job.start()
         return "Job avviato"
     
-    def _run_analysis(self, config: Dict[str, Any]):
+    def _run_analysis(self, config: Dict[str, Any], analysis_type: str = "availability"):
         """Esegue l'analisi vera e propria"""
         try:
             self.job_progress = 10
@@ -78,10 +78,15 @@ class AnalysisJobManager:
             self.job_progress = 20
             
             # Prepara il comando per l'analyzer
+            if analysis_type == "resilience":
+                analyzer_filename = 'cumulative_resilience_analyzer.py'
+            else:  # default: availability
+                analyzer_filename = 'cumulative_availability_analyzer.py'
+                
             analyzer_path = os.path.join(
                 os.path.dirname(__file__), 
                 'utils', 
-                'cumulative_availability_analyzer.py'
+                analyzer_filename
             )
             
             cmd = [
@@ -114,8 +119,14 @@ class AnalysisJobManager:
                 )
                 
                 if os.path.exists(output_dir):
+                    # Determina il pattern del file in base al tipo di analisi
+                    if analysis_type == "resilience":
+                        file_pattern = 'resilience_analysis_'
+                    else:  # availability
+                        file_pattern = 'cumulative_availability_analysis_'
+                    
                     json_files = [f for f in os.listdir(output_dir) 
-                                 if f.startswith('cumulative_availability_analysis_') and f.endswith('.json')]
+                                 if f.startswith(file_pattern) and f.endswith('.json')]
                     
                     if json_files:
                         # Prendi il file più recente
@@ -189,7 +200,12 @@ job_manager = AnalysisJobManager()
 
 @app.route('/')
 def index():
-    """Pagina iniziale con selezione file JSON o generazione"""
+    """Pagina iniziale per selezione dashboard type"""
+    return render_template('index.html')
+
+@app.route('/availability')
+def availability_index():
+    """Pagina iniziale availability con selezione file JSON o generazione"""
     # Controlla se ci sono file JSON esistenti
     output_dir = os.path.join(os.path.dirname(__file__), 'output')
     json_files = []
@@ -216,33 +232,90 @@ def index():
     # Ordina per timestamp più recente
     json_files.sort(key=lambda x: x['analysis_timestamp'], reverse=True)
     
-    return render_template('index.html', 
+    return render_template('availability_index.html', 
                          json_files=json_files, 
                          has_files=len(json_files) > 0)
 
-@app.route('/config')
-def config():
-    """Pagina di configurazione per generare nuovo file JSON"""
-    return render_template('config.html', default_config=DEFAULT_CONFIG)
+@app.route('/resilience')
+def resilience_index():
+    """Pagina iniziale resilience con selezione file JSON o generazione"""
+    # Controlla se ci sono file JSON esistenti
+    output_dir = os.path.join(os.path.dirname(__file__), 'output')
+    json_files = []
+    
+    if os.path.exists(output_dir):
+        for filename in os.listdir(output_dir):
+            if filename.endswith('.json') and 'resilience_analysis' in filename:
+                filepath = os.path.join(output_dir, filename)
+                try:
+                    # Leggi info base del file
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    
+                    # Estrai data di generazione dal filename
+                    # Format: resilience_analysis_YYYYMMDD_HHMMSS.json
+                    generation_date = "Data non disponibile"
+                    generation_date_short = "N/A"
+                    try:
+                        # Estrai timestamp dal nome file
+                        timestamp_part = filename.replace('resilience_analysis_', '').replace('.json', '')
+                        if '_' in timestamp_part:
+                            date_part, time_part = timestamp_part.split('_')
+                            # Converti YYYYMMDD_HHMMSS in formato leggibile
+                            from datetime import datetime
+                            dt = datetime.strptime(f"{date_part}_{time_part}", "%Y%m%d_%H%M%S")
+                            generation_date = dt.strftime("%d/%m/%Y alle %H:%M:%S")
+                            generation_date_short = dt.strftime("%Y-%m-%d")  # Per il titolo
+                    except Exception as date_error:
+                        logger.warning(f"Errore nell'estrazione data da {filename}: {date_error}")
+                    
+                    json_files.append({
+                        'filename': filename,
+                        'generation_date': generation_date,
+                        'generation_date_short': generation_date_short,
+                        'simulation_period': data.get('simulation_period', {}),
+                        'total_assets': len(data.get('individual_assets', {})),
+                        'filepath': filepath
+                    })
+                except Exception as e:
+                    logger.warning(f"Errore nel leggere {filename}: {e}")
+    
+    # Ordina per timestamp più recente (dal nome file)
+    json_files.sort(key=lambda x: x['filename'], reverse=True)
+    
+    return render_template('resilience_index.html', 
+                         json_files=json_files, 
+                         has_files=len(json_files) > 0)
 
-@app.route('/load_json/<filename>')
-def load_json(filename):
-    """Carica un file JSON esistente per la dashboard"""
+@app.route('/availability/config')
+def availability_config():
+    """Pagina di configurazione per generare nuovo file JSON availability"""
+    return render_template('availability_config.html', default_config=DEFAULT_CONFIG)
+
+@app.route('/resilience/config')
+def resilience_config():
+    """Pagina di configurazione per generare nuovo file JSON resilience"""
+    return render_template('resilience_config.html')
+
+@app.route('/availability/load_json/<filename>')
+def availability_load_json(filename):
+    """Carica un file JSON esistente per la dashboard availability"""
     try:
         output_dir = os.path.join(os.path.dirname(__file__), 'output')
         filepath = os.path.join(output_dir, filename)
         
-        if not os.path.exists(filepath):
+        if not os.path.exists(filepath) or 'cumulative_availability_analysis' not in filename:
             return jsonify({'success': False, 'error': 'File non trovato'})
         
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
-        # Imposta la configurazione nella sessione (necessario per la dashboard)
+        # Imposta la configurazione nella sessione
         session['config'] = {
             'error_budget': DEFAULT_CONFIG['error_budget'],
             'loaded_from_file': True,
-            'filename': filename
+            'filename': filename,
+            'dashboard_type': 'availability'
         }
         
         # Imposta il risultato nel job manager
@@ -253,16 +326,47 @@ def load_json(filename):
         job_manager.job_status = "completed"
         job_manager.job_progress = 100
         
-        logger.info(f"File JSON caricato con successo: {filename}")
-        return redirect(url_for('dashboard'))
+        logger.info(f"File JSON availability caricato con successo: {filename}")
+        return redirect(url_for('availability_dashboard'))
         
     except Exception as e:
-        logger.error(f"Errore nel caricamento file JSON: {str(e)}")
+        logger.error(f"Errore nel caricamento file JSON availability: {str(e)}")
         return jsonify({'success': False, 'error': f'Errore nel caricamento: {str(e)}'})
+
+@app.route('/resilience/load_json/<filename>')
+def resilience_load_json(filename):
+    """Carica un file JSON esistente per la dashboard resilience"""
+    try:
+        output_dir = os.path.join(os.path.dirname(__file__), 'output')
+        filepath = os.path.join(output_dir, filename)
+        
+        if not os.path.exists(filepath) or 'resilience_analysis' not in filename:
+            return jsonify({'success': False, 'error': 'File non trovato'})
+        
+        with open(filepath, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        # Imposta la configurazione nella sessione
+        session['config'] = {
+            'loaded_from_file': True,
+            'filename': filename,
+            'dashboard_type': 'resilience'
+        }
+        
+        # Imposta il risultato nel job manager
+        job_manager.job_result = {
+            'success': True,
+            'data': data
+        }
+        job_manager.job_status = "completed"
+        job_manager.job_progress = 100
+        
+        logger.info(f"File JSON resilience caricato con successo: {filename}")
+        return redirect(url_for('resilience_dashboard'))
         
     except Exception as e:
-        logger.error(f"Errore nel caricare il file JSON {filename}: {e}")
-        return jsonify({'success': False, 'error': str(e)})
+        logger.error(f"Errore nel caricamento file JSON resilience: {str(e)}")
+        return jsonify({'success': False, 'error': f'Errore nel caricamento: {str(e)}'})
 
 @app.route('/get_services')
 def get_services():
@@ -327,52 +431,65 @@ def get_services():
         logger.error(f"Errore nel recupero dei servizi: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/start_analysis', methods=['POST'])
-def start_analysis():
-    """Avvia l'analisi cumulativa con i parametri configurati"""
-    try:
-        config = request.json
-        logger.info(f"Configurazione ricevuta: {config}")
-        
-        # Salva la configurazione in sessione
-        session['config'] = config
-        
-        # Avvia il job di analisi
-        result = job_manager.start_analysis(config)
-        
-        return jsonify({'success': True, 'message': result})
-        
-    except Exception as e:
-        logger.error(f"Errore nell'avvio dell'analisi: {e}")
-        return jsonify({'success': False, 'error': str(e)})
-
 @app.route('/job_status')
 def job_status():
     """Ottieni lo status del job di analisi"""
     status = job_manager.get_status()
     return jsonify(status)
 
-@app.route('/dashboard')
-def dashboard():
-    """Pagina dashboard con i risultati"""
-    if 'config' not in session:
-        return redirect(url_for('index'))
+@app.route('/availability/dashboard')
+def availability_dashboard():
+    """Pagina dashboard availability con i risultati"""
+    if 'config' not in session or session.get('config', {}).get('dashboard_type') != 'availability':
+        return redirect(url_for('availability_index'))
     
     job_status = job_manager.get_status()
     if job_status['status'] != 'completed' or not job_status['result'] or not job_status['result']['success']:
-        return redirect(url_for('index'))
+        return redirect(url_for('availability_index'))
     
-    return render_template('dashboard.html')
+    return render_template('availability_dashboard.html')
 
-@app.route('/get_dashboard_data')
-def get_dashboard_data():
-    """API per ottenere i dati del dashboard"""
+@app.route('/resilience/dashboard')
+def resilience_dashboard():
+    """Pagina dashboard resilience con i risultati"""
+    if 'config' not in session or session.get('config', {}).get('dashboard_type') != 'resilience':
+        return redirect(url_for('resilience_index'))
+    
+    job_status = job_manager.get_status()
+    if job_status['status'] != 'completed' or not job_status['result'] or not job_status['result']['success']:
+        return redirect(url_for('resilience_index'))
+    
+    return render_template('resilience_dashboard.html')
+
+@app.route('/availability/get_dashboard_data')
+def availability_get_dashboard_data():
+    """API per ottenere i dati del dashboard availability"""
     try:
+        logger.info(f"Debug: dashboard_type in session: {session.get('config', {}).get('dashboard_type')}")
+        
+        if session.get('config', {}).get('dashboard_type') != 'availability':
+            logger.warning("Dashboard type mismatch")
+            return jsonify({'success': False, 'error': 'Dashboard type mismatch'})
+            
         job_status = job_manager.get_status()
+        logger.info(f"Debug: job status: {job_status.get('status')}")
+        
         if job_status['status'] != 'completed' or not job_status['result'] or not job_status['result']['success']:
+            logger.warning("No data available or job not completed")
             return jsonify({'success': False, 'error': 'Nessun dato disponibile'})
         
         analysis_data = job_status['result']['data']
+        logger.info(f"Debug: analysis_data keys: {list(analysis_data.keys())}")
+        logger.info(f"Debug: services count: {len(analysis_data.get('services', {}))}")
+        
+        # Trasforma la struttura per il frontend
+        if 'services' in analysis_data:
+            for service_name, service_data in analysis_data['services'].items():
+                # Rinomina detailed_metrics in timeline per compatibilità frontend
+                if 'detailed_metrics' in service_data:
+                    service_data['timeline'] = service_data['detailed_metrics']
+                    logger.info(f"Debug: Servizio {service_name} - timeline length: {len(service_data['timeline'])}")
+                    # Mantieni anche detailed_metrics per compatibilità
         
         # Usa direttamente il summary dal JSON se disponibile
         if 'summary' in analysis_data and 'aggregated_score' in analysis_data['summary']:
@@ -391,48 +508,257 @@ def get_dashboard_data():
                 
             aggregated_score = total_score / total_weight if total_weight > 0 else 0
         
-        # Converti detailed_metrics in timeline per compatibilità con frontend
-        services_with_timeline = {}
-        for service_name, service_data in analysis_data.get('services', {}).items():
-            detailed_metrics = service_data.get('detailed_metrics', [])
-            
-            # Crea timeline dai detailed_metrics
-            timeline = []
-            for metric in detailed_metrics:
-                timeline.append({
-                    'timestamp': metric.get('timestamp'),
-                    'cumulative_percentage': metric.get('score', 0) * 100,  # Converti a percentuale
-                    'status': metric.get('status_type', 'UNKNOWN'),
-                    'failures': metric.get('cumulative_failures', 0)
-                })
-            
-            services_with_timeline[service_name] = {
-                'service_id': service_data.get('service_id'),
-                'error_budget': service_data.get('error_budget', 0),
-                'weight': service_data.get('weight', 0),
-                'final_score': service_data.get('final_score', 0),
-                'final_status': service_data.get('final_status', 'UNKNOWN'),
-                'total_failures': service_data.get('total_failures', 0),
-                'timeline': timeline
-            }
-        
-        result = {
+        return jsonify({
             'success': True,
-            'aggregated_health_score': round(aggregated_score, 2),
-            'services': services_with_timeline,
-            'config': analysis_data.get('configuration', {}),  # Aggiungi la configurazione
-            'analysis_info': {
-                'analysis_dates': analysis_data.get('analysis_dates', []),
-                'total_services': len(services_with_timeline),
-                'last_updated': analysis_data.get('analysis_timestamp')
-            }
-        }
-        
-        logger.info(f"Dashboard data preparato: {len(services_with_timeline)} servizi, score aggregato: {aggregated_score:.2f}%")
-        return jsonify(result)
+            'services': analysis_data.get('services', {}),
+            'summary': analysis_data.get('summary', {}),
+            'aggregated_score': aggregated_score,
+            'data': analysis_data  # Mantieni anche il campo data per compatibilità
+        })
         
     except Exception as e:
-        logger.error(f"Errore nel recupero dei dati del dashboard: {e}")
+        logger.error(f"Errore nel recupero dati availability dashboard: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/resilience/get_dashboard_data')
+def resilience_get_dashboard_data():
+    """API per ottenere i dati del dashboard resilience"""
+    try:
+        if session.get('config', {}).get('dashboard_type') != 'resilience':
+            return jsonify({'success': False, 'error': 'Dashboard type mismatch'})
+            
+        job_status = job_manager.get_status()
+        if job_status['status'] != 'completed' or not job_status['result'] or not job_status['result']['success']:
+            return jsonify({'success': False, 'error': 'Nessun dato disponibile'})
+        
+        analysis_data = job_status['result']['data']
+        
+        # Calcola aggregated score per resilience usando solo individual_assets
+        total_weighted_score = 0
+        total_weight = 0
+        
+        # Processa solo asset individuali (inclusi backup jobs)
+        for asset_id, asset_data in analysis_data.get('individual_assets', {}).items():
+            simulation_data = asset_data.get('simulation_data', [])
+            config_used = asset_data.get('config_used', {})
+            
+            if simulation_data:
+                # Usa l'ultimo punto della simulazione
+                latest = simulation_data[-1]
+                score = latest.get('resilience_score', 0)
+                
+                # Peso basato su w_rpo e w_success dal config_used
+                weights = config_used.get('weights', {'w_rpo': 0.6, 'w_success': 0.4})
+                weight = weights.get('w_rpo', 0.6) + weights.get('w_success', 0.4)  # Somma dei pesi come peso totale
+                
+                total_weighted_score += score * weight
+                total_weight += weight
+                
+        aggregated_score = total_weighted_score / total_weight if total_weight > 0 else 0
+        
+        return jsonify({
+            'success': True,
+            'data': analysis_data,
+            'aggregated_score': aggregated_score
+        })
+        
+    except Exception as e:
+        logger.error(f"Errore nel recupero dati resilience dashboard: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/availability/start_analysis', methods=['POST'])
+def availability_start_analysis():
+    """Avvia l'analisi availability"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Nessun dato ricevuto'})
+        
+        # Imposta il tipo di dashboard
+        data['dashboard_type'] = 'availability'
+        session['config'] = data
+        session['config']['dashboard_type'] = 'availability'
+        
+        # Avvia il job di analisi
+        job_id = job_manager.start_analysis(data, "availability")
+        
+        return jsonify({'success': True, 'job_id': job_id})
+        
+    except Exception as e:
+        logger.error(f"Errore nell'avvio analisi availability: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/availability/analysis_progress')
+def availability_analysis_progress():
+    """Verifica il progresso dell'analisi availability"""
+    try:
+        progress_data = {
+            'status': job_manager.job_status,
+            'progress': job_manager.job_progress
+        }
+        
+        if job_manager.job_status == "completed" and job_manager.job_result:
+            progress_data['result'] = job_manager.job_result
+        elif job_manager.job_status == "failed" and job_manager.job_result:
+            progress_data['error'] = job_manager.job_result.get('error', 'Errore sconosciuto')
+        
+        return jsonify(progress_data)
+        
+    except Exception as e:
+        logger.error(f"Errore nel controllo progresso availability: {e}")
+        return jsonify({
+            'status': 'failed',
+            'progress': 0,
+            'error': str(e)
+        })
+
+@app.route('/resilience/start_analysis', methods=['POST'])
+def resilience_start_analysis():
+    """Avvia l'analisi resilience"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Nessun dato ricevuto'})
+        
+        # Imposta il tipo di dashboard  
+        data['dashboard_type'] = 'resilience'
+        session['config'] = data
+        session['config']['dashboard_type'] = 'resilience'
+        
+        # Avvia il job di analisi
+        job_id = job_manager.start_analysis(data, "resilience")
+        
+        return jsonify({'success': True, 'job_id': job_id})
+        
+    except Exception as e:
+        logger.error(f"Errore nell'avvio analisi resilience: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/resilience/analysis_progress')
+def resilience_analysis_progress():
+    """Verifica il progresso dell'analisi resilience"""
+    try:
+        progress_data = {
+            'status': job_manager.job_status,
+            'progress': job_manager.job_progress
+        }
+        
+        if job_manager.job_status == "failed" and job_manager.job_result:
+            progress_data['error'] = job_manager.job_result.get('error', 'Errore sconosciuto')
+        
+        return jsonify(progress_data)
+        
+    except Exception as e:
+        logger.error(f"Errore nel controllo progresso: {e}")
+        return jsonify({
+            'status': 'failed',
+            'progress': 0,
+            'error': str(e)
+        })
+
+@app.route('/resilience/get_dashboard_data')
+def get_resilience_dashboard_data():
+    """Carica i dati per il dashboard resilience"""
+    try:
+        # Controlla se ci sono risultati dell'analisi
+        if job_manager.job_result and job_manager.job_result.get('success'):
+            analysis_data = job_manager.job_result['data']
+            
+            # Estrai le informazioni necessarie per il dashboard
+            dashboard_data = {
+                'simulation_period': analysis_data.get('simulation_period', {}),
+                'backup_jobs': analysis_data.get('backup_jobs', {}),
+                'individual_assets': analysis_data.get('individual_assets', {}),
+                'aggregated_scores': analysis_data.get('aggregated_scores', {}),
+                'configuration': analysis_data.get('configuration', {})
+            }
+            
+            return jsonify({'success': True, 'data': dashboard_data})
+        else:
+            return jsonify({
+                'success': False, 
+                'error': 'Nessun dato di analisi disponibile. Esegui prima un\'analisi.'
+            })
+            
+    except Exception as e:
+        logger.error(f"Errore nel caricamento dati dashboard: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/resilience/get_backup_jobs')
+def get_resilience_backup_jobs():
+    """Carica i backup jobs disponibili per la configurazione"""
+    try:
+        # Prendi dalla storage o da una configurazione predefinita
+        storage_manager = StorageManager(
+            connection_string=DATABASE_CONFIG['connection_string'],
+            database_name=DATABASE_CONFIG['database_name']
+        )
+        storage_manager.connect()
+        
+        # Cerca backup jobs nel database
+        backup_jobs = storage_manager.get_assets_by_type(asset_type="acronis_backup_job")
+        logger.info(f"Backup jobs trovati con type='acronis_backup_job': {len(backup_jobs)}")
+        
+        # Se non trova backup jobs, prova con altri asset
+        if len(backup_jobs) == 0:
+            # Cerca asset che potrebbero essere backup jobs
+            all_assets = list(storage_manager.database['assets'].find())
+            backup_jobs = [asset for asset in all_assets if 
+                          asset.get('name', '').lower().find('backup') != -1 or
+                          asset.get('type', '') == 'backup' or
+                          asset.get('service_type', '') == 'backup']
+            logger.info(f"Asset con 'backup' nel nome o tipo: {len(backup_jobs)}")
+        
+        # Se ancora non ci sono, crea dati di esempio
+        if len(backup_jobs) == 0:
+            backup_jobs = [
+                {
+                    '_id': 'backup_job_1',
+                    'name': 'Daily VM Backup',
+                    'job_name': 'Daily VM Backup',
+                    'type': 'backup_job',
+                    'backup_type': 'VM',
+                    'schedule': 'daily'
+                },
+                {
+                    '_id': 'backup_job_2', 
+                    'name': 'Weekly Database Backup',
+                    'job_name': 'Weekly Database Backup',
+                    'type': 'backup_job',
+                    'backup_type': 'Database',
+                    'schedule': 'weekly'
+                },
+                {
+                    '_id': 'backup_job_3',
+                    'name': 'File Server Backup',
+                    'job_name': 'File Server Backup', 
+                    'type': 'backup_job',
+                    'backup_type': 'File',
+                    'schedule': 'daily'
+                }
+            ]
+            logger.info("Utilizzando backup jobs di esempio")
+        
+        backup_job_list = []
+        
+        for job in backup_jobs:
+            job_name = job.get('job_name', job.get('name', f"BackupJob_{job.get('_id', 'unknown')}"))
+            
+            backup_job_list.append({
+                'id': str(job.get('_id')),
+                'name': job_name,
+                'description': job.get('description', f'Backup job {job_name}'),
+                'backup_type': job.get('backup_type', job.get('data', {}).get('backup_type', 'unknown')),
+                'schedule': job.get('schedule', 'unknown'),
+                'type': job.get('type', 'backup_job')
+            })
+        
+        storage_manager.disconnect()
+        logger.info(f"Trovati {len(backup_job_list)} backup jobs")
+        return jsonify({'success': True, 'backup_jobs': backup_job_list})
+        
+    except Exception as e:
+        logger.error(f"Errore nel caricamento backup jobs: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/reset_config')

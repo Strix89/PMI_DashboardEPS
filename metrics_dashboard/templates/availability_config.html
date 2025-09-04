@@ -66,6 +66,37 @@
             top: 20px;
             right: 20px;
             z-index: 1000;
+            background: var(--card-light);
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: var(--card-light);
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .theme-toggle:hover, .back-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .theme-toggle i, .back-button i {
+            color: var(--accent-orange);
+            font-size: 1.2rem;
         }
 
         body {
@@ -398,11 +429,13 @@
     </style>
 </head>
 <body data-theme="light">
-    <div class="theme-toggle">
-        <button class="btn btn-outline-secondary" onclick="toggleTheme()">
-            <i class="fas fa-moon" id="theme-icon"></i>
-        </button>
-    </div>
+    <button class="back-button btn" onclick="location.href='/availability'" title="Torna alla selezione file">
+        <i class="fas fa-arrow-left"></i>
+    </button>
+
+    <button class="theme-toggle btn" onclick="toggleTheme()" title="Cambia tema">
+        <i class="fas fa-moon" id="theme-icon"></i>
+    </button>
 
     <div class="config-container">
         <div class="container">
@@ -825,7 +858,7 @@
             showLoading();
             
             try {
-                const response = await fetch('/start_analysis', {
+                const response = await fetch('/availability/start_analysis', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -867,14 +900,14 @@
         // Controlla status job
         async function checkJobStatus() {
             try {
-                const response = await fetch('/job_status');
+                const response = await fetch('/availability/analysis_progress');
                 const data = await response.json();
                 
                 updateLoadingProgress(data.progress);
                 
                 if (data.status === 'completed') {
                     if (data.result && data.result.success) {
-                        window.location.href = '/dashboard';
+                        window.location.href = '/availability/dashboard';
                     } else {
                         hideLoading();
                         showError('Errore nell\'analisi: ' + (data.result ? data.result.error : 'Errore sconosciuto'));

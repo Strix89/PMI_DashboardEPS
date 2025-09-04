@@ -34,7 +34,7 @@ from storage_layer.exceptions import StorageManagerError
 
 # Configurazione logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,  # Cambiato da INFO a DEBUG
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout)
@@ -72,16 +72,24 @@ class CumulativeResilienceAnalyzer:
         self.simulation_hours = 168
         
         # Configurazione personalizzata se fornita
+        self.config = config  # Salva la configurazione originale
         if config:
             self.asset_rpo_targets = config.get('asset_rpo_targets', {})
             self.backup_job_rpo_targets = config.get('backup_job_rpo_targets', {})
             self.asset_weights = config.get('asset_weights', {})
             self.backup_job_weights = config.get('backup_job_weights', {})
+            
+            # Log della configurazione caricata per debug
+            logger.info(f"Configurazione caricata - Asset RPO targets: {len(self.asset_rpo_targets)} entries")
+            logger.info(f"Configurazione caricata - Backup job RPO targets: {len(self.backup_job_rpo_targets)} entries")
+            logger.info(f"Configurazione caricata - Asset weights: {len(self.asset_weights)} entries")
+            logger.info(f"Configurazione caricata - Backup job weights: {len(self.backup_job_weights)} entries")
         else:
             self.asset_rpo_targets = {}
             self.backup_job_rpo_targets = {}
             self.asset_weights = {}
             self.backup_job_weights = {}
+            logger.info("Nessuna configurazione personalizzata fornita, uso valori default")
         
         # Configurazione default per target RPO (in ore)
         self.default_rpo_config = {
@@ -122,13 +130,21 @@ class CumulativeResilienceAnalyzer:
         if is_backup_job:
             # Controlla configurazione personalizzata per backup job
             if entity_id in self.backup_job_rpo_targets:
-                return self.backup_job_rpo_targets[entity_id]
-            return self.default_rpo_config.get("acronis_backup_job", 24)
+                target_rpo = self.backup_job_rpo_targets[entity_id]
+                self.logger.debug(f"Target RPO personalizzato per backup job {entity_id}: {target_rpo}h")
+                return target_rpo
+            default_rpo = self.default_rpo_config.get("acronis_backup_job", 24)
+            self.logger.debug(f"Target RPO default per backup job {entity_id}: {default_rpo}h")
+            return default_rpo
         else:
             # Controlla configurazione personalizzata per asset
             if entity_id in self.asset_rpo_targets:
-                return self.asset_rpo_targets[entity_id]
-            return self.default_rpo_config.get(entity_type, self.default_rpo_config["default"])
+                target_rpo = self.asset_rpo_targets[entity_id]
+                self.logger.debug(f"Target RPO personalizzato per asset {entity_id}: {target_rpo}h")
+                return target_rpo
+            default_rpo = self.default_rpo_config.get(entity_type, self.default_rpo_config["default"])
+            self.logger.debug(f"Target RPO default per asset {entity_id} (tipo {entity_type}): {default_rpo}h")
+            return default_rpo
     
     def get_weights(self, entity_id: str, is_backup_job: bool = False) -> Dict[str, float]:
         """
@@ -143,12 +159,18 @@ class CumulativeResilienceAnalyzer:
         """
         if is_backup_job:
             if entity_id in self.backup_job_weights:
-                return self.backup_job_weights[entity_id]
+                weights = self.backup_job_weights[entity_id]
+                self.logger.debug(f"Pesi personalizzati per backup job {entity_id}: {weights}")
+                return weights
         else:
             if entity_id in self.asset_weights:
-                return self.asset_weights[entity_id]
+                weights = self.asset_weights[entity_id]
+                self.logger.debug(f"Pesi personalizzati per asset {entity_id}: {weights}")
+                return weights
         
-        return self.default_weights.copy()
+        default_weights = self.default_weights.copy()
+        self.logger.debug(f"Pesi default per {entity_id}: {default_weights}")
+        return default_weights
     
     def calculate_rpo_compliance(self, last_successful_backup: Optional[datetime], 
                                current_time: datetime, target_rpo_hours: int) -> float:
@@ -164,7 +186,7 @@ class CumulativeResilienceAnalyzer:
             Punteggio RPO Compliance (0.0 - 1.0)
         """
         if last_successful_backup is None:
-            return 0.0  # Nessun backup mai riuscito
+            return 1.0  # Nessun backup ancora riuscito = compliance perfetta (100%)
         
         # Calcola actual RPO in ore
         time_diff = current_time - last_successful_backup
@@ -312,7 +334,7 @@ class CumulativeResilienceAnalyzer:
             return []
     
     def simulate_entity_resilience(self, entity_id: str, entity_type: str, 
-                                 start_time: datetime, is_backup_job: bool = False) -> List[Dict[str, Any]]:
+                                 start_time: datetime, is_backup_job: bool = False):
         """
         Simula la resilienza di un'entità ora per ora per una settimana.
         
@@ -323,7 +345,9 @@ class CumulativeResilienceAnalyzer:
             is_backup_job: True se è un backup job
             
         Returns:
-            Lista di risultati per ogni ora
+            Tupla con:
+            - Lista di risultati per ogni ora
+            - Configurazione utilizzata per questa entità
         """
         results = []
         end_time = start_time + timedelta(hours=self.simulation_hours)
@@ -331,6 +355,18 @@ class CumulativeResilienceAnalyzer:
         # Ottieni configurazioni per questa entità
         target_rpo_hours = self.get_target_rpo_hours(entity_id, entity_type, is_backup_job)
         weights = self.get_weights(entity_id, is_backup_job)
+        
+        # Prepara info sulla configurazione utilizzata
+        config_used = {
+            "target_rpo_hours": target_rpo_hours,
+            "weights": weights.copy(),
+            "rpo_source": "custom" if (self.config and 
+                                     (entity_id in self.config.get("asset_rpo_targets", {}) or
+                                      entity_id in self.config.get("backup_job_rpo_targets", {}))) else "default",
+            "weights_source": "custom" if (self.config and 
+                                         (entity_id in self.config.get("asset_weights", {}) or
+                                          entity_id in self.config.get("backup_job_weights", {}))) else "default"
+        }
         
         # Ottieni tutte le metriche di backup per l'intera finestra
         all_metrics = self.get_backup_metrics_for_entity(entity_id, start_time, end_time)
@@ -351,7 +387,14 @@ class CumulativeResilienceAnalyzer:
                 if metric_time and current_time <= metric_time < hour_end:
                     total_backups_attempted += 1
                     
-                    if metric.get('value', 0) == 1.0:  # Backup riuscito
+                    # Gestisce sia metriche semplici (0/1) che complesse (oggetti)
+                    metric_value = metric.get('value', 0)
+                    if isinstance(metric_value, dict):
+                        # Metrica complessa con backup_completed
+                        if metric_value.get('backup_completed', 0) == 1.0:
+                            total_backups_successful += 1
+                            last_successful_backup = metric_time
+                    elif metric_value == 1.0:  # Backup riuscito (metrica semplice)
                         total_backups_successful += 1
                         last_successful_backup = metric_time
             
@@ -359,9 +402,15 @@ class CumulativeResilienceAnalyzer:
             rpo_compliance = self.calculate_rpo_compliance(
                 last_successful_backup, current_time, target_rpo_hours
             )
-            success_rate = self.calculate_success_rate(
-                total_backups_successful, total_backups_attempted
-            )
+            
+            # Per l'ora 0, considera lo stato iniziale come ottimale se non ci sono ancora backup riusciti
+            if hour == 0 and total_backups_successful == 0:
+                success_rate = 1.0  # Stato iniziale perfetto
+            else:
+                success_rate = self.calculate_success_rate(
+                    total_backups_successful, total_backups_attempted
+                )
+            
             resilience_score = self.calculate_resilience_score(
                 rpo_compliance, success_rate, weights
             )
@@ -383,7 +432,7 @@ class CumulativeResilienceAnalyzer:
                 "target_rpo_hours": target_rpo_hours
             })
         
-        return results
+        return results, config_used
     
     def generate_analysis(self) -> Dict[str, Any]:
         """
@@ -428,82 +477,126 @@ class CumulativeResilienceAnalyzer:
                 "total_hours": self.simulation_hours
             },
             "configuration": {
-                "default_target_rpo_hours": self.default_rpo_config["default"],
+                "default_target_rpo_hours": self.default_rpo_config.copy(),
                 "default_weights": self.default_weights.copy(),
-                "resilience_thresholds": self.resilience_thresholds.copy()
+                "resilience_thresholds": self.resilience_thresholds.copy(),
+                # Aggiungi configurazione personalizzata utilizzata
+                "custom_asset_rpo_targets": self.config.get("asset_rpo_targets", {}).copy() if self.config else {},
+                "custom_backup_job_rpo_targets": self.config.get("backup_job_rpo_targets", {}).copy() if self.config else {},
+                "custom_asset_weights": self.config.get("asset_weights", {}).copy() if self.config else {},
+                "custom_backup_job_weights": self.config.get("backup_job_weights", {}).copy() if self.config else {},
+                "has_custom_config": bool(self.config)
             },
-            "backup_jobs": {},
             "individual_assets": {}
         }
         
-        # Analizza backup job Acronis
+        # Analizza backup job Acronis come asset individuali
         backup_jobs = self.get_backup_jobs()
         for job in backup_jobs:
             job_id = job.get('_id') or job.get('asset_id')
             job_data = job.get('data', {})
             job_name = job_data.get('job_name', 'Unknown')
-            target_assets = job_data.get('target_assets', [])
             
             if not job_id:
                 continue
             
-            self.logger.info(f"Analizzando backup job: {job_name} (ID: {job_id})")
+            self.logger.info(f"Analizzando backup job come asset individuale: {job_name} (ID: {job_id})")
             
-            # Per ogni backup job, simula la resilienza per ogni asset target
-            job_results = {
-                "job_name": job_name,
-                "target_assets": target_assets,
-                "asset_simulations": {}
-            }
-            
-            for asset_id in target_assets:
-                try:
-                    # Ottieni informazioni sull'asset per determinarne il tipo
-                    asset = self.storage_manager.get_asset(asset_id)
-                    asset_type = asset.get('asset_type', 'unknown') if asset else 'unknown'
-                    
-                    simulation_data = self.simulate_entity_resilience(
-                        asset_id, asset_type, simulation_start, is_backup_job=False
-                    )
-                    
-                    job_results["asset_simulations"][asset_id] = {
-                        "asset_type": asset_type,
-                        "hostname": asset.get('hostname', 'N/A') if asset else 'N/A',
-                        "simulation_data": simulation_data
-                    }
-                    
-                except Exception as e:
-                    self.logger.error(f"Errore nell'analisi dell'asset {asset_id} per il job {job_id}: {e}")
-            
-            analysis_result["backup_jobs"][job_id] = job_results
+            try:
+                # Simula il backup job come entità standalone
+                simulation_data, config_used = self.simulate_entity_resilience(
+                    job_id, 'acronis_backup_job', simulation_start, is_backup_job=True
+                )
+                
+                analysis_result["individual_assets"][job_id] = {
+                    "hostname": job_name,
+                    "asset_type": "acronis_backup_job",
+                    "job_name": job_name,
+                    "description": job_data.get('description', f'Backup job {job_name}'),
+                    "destination": job_data.get('destination', 'Unknown'),
+                    "backup_path": job_data.get('backup_path', 'Unknown'),
+                    "schedule": job_data.get('schedule', 'Unknown'),
+                    "backup_type": job_data.get('backup_type', 'Unknown'),
+                    "simulation_data": simulation_data,
+                    "config_used": config_used
+                }
+                
+            except Exception as e:
+                self.logger.error(f"Errore nell'analisi del backup job {job_id}: {e}")
         
-        # Analizza asset individuali
+        # Analizza asset individuali con dati backup
         assets_with_backups = self.get_assets_with_backup_data()
         for asset in assets_with_backups:
             asset_id = asset.get('_id') or asset.get('asset_id')
             asset_type = asset.get('asset_type', 'unknown')
             hostname = asset.get('hostname', 'N/A')
             
-            if not asset_id:
-                continue
+            if not asset_id or asset_id in analysis_result["individual_assets"]:
+                continue  # Skip se già processato come backup job
             
             self.logger.info(f"Analizzando asset individuale: {hostname} (ID: {asset_id})")
             
             try:
-                simulation_data = self.simulate_entity_resilience(
+                # Ottieni la configurazione utilizzata per questo asset
+                simulation_data, config_used = self.simulate_entity_resilience(
                     asset_id, asset_type, simulation_start, is_backup_job=False
                 )
                 
                 analysis_result["individual_assets"][asset_id] = {
                     "hostname": hostname,
                     "asset_type": asset_type,
-                    "simulation_data": simulation_data
+                    "simulation_data": simulation_data,
+                    # Usa la configurazione effettivamente utilizzata durante la simulazione
+                    "config_used": config_used
                 }
                 
             except Exception as e:
                 self.logger.error(f"Errore nell'analisi dell'asset {asset_id}: {e}")
         
         self.logger.info("Analisi cumulativa completata")
+        
+        # Calcola il summary aggregato
+        total_entities = 0
+        aggregated_score_sum = 0.0
+        entity_scores = []
+        
+        # Raccoglie i punteggi finali da individual assets (inclusi backup jobs)
+        for asset_id, asset_data in analysis_result["individual_assets"].items():
+            if asset_data["simulation_data"]:
+                final_score = asset_data["simulation_data"][-1]["resilience_score"]
+                entity_scores.append(final_score)
+                aggregated_score_sum += final_score
+                total_entities += 1
+        
+        # Calcola il punteggio aggregato e lo status
+        if total_entities > 0:
+            aggregated_score = aggregated_score_sum / total_entities
+            
+            # Determina lo status aggregato basato sui threshold
+            if aggregated_score >= self.resilience_thresholds["excellent"]:
+                aggregated_status = "EXCELLENT"
+            elif aggregated_score >= self.resilience_thresholds["good"]:
+                aggregated_status = "GOOD"
+            elif aggregated_score >= self.resilience_thresholds["acceptable"]:
+                aggregated_status = "ACCEPTABLE"
+            elif aggregated_score >= self.resilience_thresholds["critical"]:
+                aggregated_status = "CRITICAL"
+            else:
+                aggregated_status = "SEVERE"
+        else:
+            aggregated_score = 0.0
+            aggregated_status = "SEVERE"
+        
+        # Aggiunge il summary all'analisi
+        analysis_result["summary"] = {
+            "total_entities": total_entities,
+            "aggregated_score": round(aggregated_score, 2),
+            "aggregated_status": aggregated_status,
+            "simulation_hours": self.simulation_hours
+        }
+        
+        self.logger.info(f"Summary calcolato: {total_entities} entità, score aggregato: {aggregated_score:.2f}, status: {aggregated_status}")
+        
         return analysis_result
     
     def save_analysis_to_json(self, analysis: Dict[str, Any], 

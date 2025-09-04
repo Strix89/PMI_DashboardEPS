@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Availability Dashboard - Selezione Analisi</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #ff8c00;
+            --secondary-color: #2c3e50;
+            --success-color: #27ae60;
+            --warning-color: #ff6b35;
+            --danger-color: #e74c3c;
+            --light-bg: #fafafa;
+            --dark-bg: #1e1e1e;
+            --text-light: #2c3e50;
+            --text-dark: #f5f5f5;
+            --accent-orange: #ff8c00;
+            --card-light: #ffffff;
+            --card-dark: #2d2d2d;
+        }
+
+        [data-theme="dark"] {
+            --light-bg: var(--dark-bg);
+            --text-light: var(--text-dark);
+            --card-light: var(--card-dark);
+            background-color: var(--dark-bg);
+            color: var(--text-dark);
+        }
+
+        [data-theme="dark"] .card {
+            background-color: var(--card-dark);
+            border: 1px solid #404040;
+            color: var(--text-dark);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        body {
+            background-color: var(--light-bg);
+            color: var(--text-light);
+            transition: all 0.3s ease;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .main-container {
+            min-height: 100vh;
+            background: linear-gradient(135deg, var(--accent-orange), #ff6b35);
+            padding: 2rem 0;
+        }
+
+        .main-card {
+            background: var(--card-light);
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            border: none;
+            transition: all 0.3s ease;
+        }
+
+        .header-section {
+            text-align: center;
+            padding: 3rem 2rem 2rem;
+        }
+
+        .header-icon {
+            color: var(--accent-orange);
+            filter: drop-shadow(0 4px 8px rgba(255, 140, 0, 0.3));
+            margin-bottom: 1.5rem;
+        }
+
+        .main-title {
+            background: linear-gradient(135deg, var(--accent-orange), #ff6b35);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 900;
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .subtitle {
+            color: #6c757d;
+            font-size: 1.2rem;
+            margin-bottom: 0;
+        }
+
+        .file-card {
+            border: 2px solid #e9ecef;
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .file-card:hover {
+            border-color: var(--accent-orange);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 140, 0, 0.2);
+        }
+
+        .file-card.selected {
+            border-color: var(--accent-orange);
+            background: rgba(255, 140, 0, 0.05);
+        }
+
+        .file-card h6 {
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            hyphens: auto;
+        }
+
+        .file-info {
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            hyphens: auto;
+        }
+
+        .filename-text {
+            font-size: 0.85rem;
+            word-wrap: break-word;
+            word-break: break-all;
+            overflow-wrap: break-word;
+            line-height: 1.3;
+            max-width: 100%;
+            display: block;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        .filename-text:hover {
+            white-space: normal;
+            overflow: visible;
+            height: auto;
+        }
+
+        @media (max-width: 768px) {
+            .filename-text {
+                white-space: normal;
+                overflow: visible;
+            }
+        }
+
+        .file-date {
+            color: var(--accent-orange);
+            font-weight: 600;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-orange), #ff6b35);
+            border: none;
+            border-radius: 12px;
+            padding: 15px 30px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #e67e00, var(--accent-orange));
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 140, 0, 0.4);
+        }
+
+        .btn-secondary {
+            border-radius: 12px;
+            padding: 15px 30px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-1px);
+        }
+
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: var(--card-light);
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: var(--card-light);
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .theme-toggle:hover, .back-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .theme-toggle i, .back-button i {
+            color: var(--accent-orange);
+            font-size: 1.2rem;
+        }
+
+        .no-files-section {
+            text-align: center;
+            padding: 2rem;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body data-theme="light">
+    <button class="back-button btn" onclick="location.href='/'" title="Torna alla home">
+        <i class="fas fa-arrow-left"></i>
+    </button>
+
+    <button class="theme-toggle btn" onclick="toggleTheme()" title="Cambia tema">
+        <i class="fas fa-moon" id="theme-icon"></i>
+    </button>
+
+    <div class="main-container">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-lg-8 col-xl-6">
+                    <div class="main-card">
+                        <div class="header-section">
+                            <div class="header-icon">
+                                <i class="fas fa-chart-line fa-5x"></i>
+                            </div>
+                            <h1 class="main-title">Availability Dashboard</h1>
+                            <p class="subtitle">Seleziona un'analisi esistente o generane una nuova</p>
+                        </div>
+
+                        <div class="p-4">
+                            {% if has_files %}
+                                <h4 class="mb-4">
+                                    <i class="fas fa-history me-2" style="color: var(--accent-orange);"></i>
+                                    Analisi Disponibili
+                                </h4>
+                                
+                                <div id="files-list">
+                                    {% for file in json_files %}
+                                    <div class="file-card" onclick="selectFile('{{ file.filename }}')">
+                                        <div class="row align-items-center">
+                                            <div class="col-12">
+                                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                                    <div class="file-info flex-grow-1 me-3">
+                                                        <h6 class="mb-1">
+                                                            <i class="fas fa-file-chart me-2 text-success"></i>
+                                                            Analisi {{ file.analysis_dates[0][:10] if file.analysis_dates else 'N/A' }}
+                                                        </h6>
+                                                        <small class="text-muted d-block mb-1">
+                                                            <i class="fas fa-clock me-1"></i>
+                                                            {% if file.analysis_timestamp != 'N/A' %}
+                                                                {{ file.analysis_timestamp[:19].replace('T', ' ') }}
+                                                            {% else %}
+                                                                Data non disponibile
+                                                            {% endif %}
+                                                        </small>
+                                                    </div>
+                                                    <div class="text-end flex-shrink-0">
+                                                        <div class="file-date">{{ file.total_services }} servizi</div>
+                                                    </div>
+                                                </div>
+                                                <div class="filename-container">
+                                                    <small class="filename-text text-muted" title="{{ file.filename }}">
+                                                        <i class="fas fa-file me-1"></i>
+                                                        {{ file.filename }}
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+
+                                <div class="d-grid gap-2 mt-4">
+                                    <button class="btn btn-primary" onclick="loadSelectedFile()" id="load-btn" disabled>
+                                        <i class="fas fa-play me-2"></i>
+                                        Carica Analisi Selezionata
+                                    </button>
+                                    <button class="btn btn-secondary" onclick="generateNew()">
+                                        <i class="fas fa-plus me-2"></i>
+                                        Genera Nuova Analisi
+                                    </button>
+                                </div>
+                            {% else %}
+                                <div class="no-files-section">
+                                    <i class="fas fa-inbox fa-4x mb-3" style="color: #dee2e6;"></i>
+                                    <h5>Nessuna analisi disponibile</h5>
+                                    <p>Non sono state trovate analisi precedenti. Genera la prima analisi per iniziare.</p>
+                                    
+                                    <div class="d-grid mt-4">
+                                        <button class="btn btn-primary" onclick="generateNew()">
+                                            <i class="fas fa-rocket me-2"></i>
+                                            Genera Prima Analisi
+                                        </button>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let selectedFile = null;
+
+        function selectFile(filename) {
+            console.log('File selezionato:', filename);
+            
+            // Rimuovi selezione precedente
+            document.querySelectorAll('.file-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+
+            // Seleziona il file corrente
+            event.currentTarget.classList.add('selected');
+            selectedFile = filename;
+            
+            console.log('selectedFile impostato a:', selectedFile);
+
+            // Abilita il pulsante di caricamento
+            document.getElementById('load-btn').disabled = false;
+        }
+
+        function loadSelectedFile() {
+            console.log('Caricamento file:', selectedFile);
+            if (selectedFile) {
+                const url = `/availability/load_json/${selectedFile}`;
+                console.log('Navigando verso:', url);
+                window.location.href = url;
+            } else {
+                console.error('Nessun file selezionato');
+            }
+        }
+
+        function generateNew() {
+            window.location.href = '/availability/config';
+        }
+
+        function toggleTheme() {
+            const body = document.body;
+            const themeIcon = document.getElementById('theme-icon');
+            
+            if (body.getAttribute('data-theme') === 'dark') {
+                body.setAttribute('data-theme', 'light');
+                themeIcon.className = 'fas fa-moon';
+            } else {
+                body.setAttribute('data-theme', 'dark');
+                themeIcon.className = 'fas fa-sun';
+            }
+        }
+    </script>
+</body>
+</html>

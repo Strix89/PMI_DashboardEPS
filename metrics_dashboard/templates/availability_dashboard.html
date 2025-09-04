@@ -99,7 +99,29 @@
         }
 
         .theme-toggle {
-            margin-left: auto;
+            border-radius: 50%;
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .back-button {
+            border-radius: 50%;
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            margin-right: 1rem;
+        }
+
+        .theme-toggle:hover, .back-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 140, 0, 0.3);
         }
 
         .health-score-card {
@@ -521,11 +543,14 @@
                 Availability Dashboard
             </a>
             <div class="navbar-nav ms-auto d-flex flex-row align-items-center">
+                <button class="btn btn-outline-light back-button" onclick="location.href='/availability'" title="Torna alla selezione file">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
                 <span class="navbar-text me-3">
                     <i class="fas fa-clock me-1"></i>
                     <span id="current-time">--:--:--</span>
                 </span>
-                <button class="btn btn-outline-light theme-toggle" onclick="toggleTheme()">
+                <button class="btn btn-outline-light theme-toggle" onclick="toggleTheme()" title="Cambia tema">
                     <i class="fas fa-moon" id="theme-icon"></i>
                 </button>
             </div>
@@ -694,8 +719,14 @@
         // Carica dati dashboard
         async function loadDashboardData() {
             try {
-                const response = await fetch('/get_dashboard_data');
+                const response = await fetch('/availability/get_dashboard_data');
                 const data = await response.json();
+                
+                console.log('Dati ricevuti dall\'API:', data);
+                console.log('Chiavi disponibili:', Object.keys(data));
+                if (data.services) {
+                    console.log('Servizi ricevuti:', Object.keys(data.services));
+                }
                 
                 if (data.success) {
                     dashboardData = data;
@@ -713,6 +744,13 @@
 
         // Inizializza dashboard
         function initializeDashboard() {
+            // Verifica che i dati siano validi
+            if (!dashboardData || !dashboardData.services) {
+                console.error('Dati dashboard non validi:', dashboardData);
+                window.location.href = '/availability';
+                return;
+            }
+            
             // Calcola il massimo indice della timeline
             maxTimelineIndex = 0;
             Object.values(dashboardData.services).forEach(service => {
@@ -1135,7 +1173,7 @@
                 
                 if (serviceData.timeline && serviceData.timeline.length > currentTimelineIndex) {
                     const currentData = serviceData.timeline[currentTimelineIndex];
-                    const availability = currentData.cumulative_percentage || 0;
+                    const availability = (currentData.score || 0) * 100; // Converte da 0-1 a 0-100%
                     
                     totalWeightedScore += availability * weight;
                     totalWeight += weight;
@@ -1159,21 +1197,20 @@
             }
             
             const currentData = serviceData.timeline[currentTimelineIndex];
-            const availability = currentData.cumulative_percentage || 0;
-            const failedPollings = currentData.failures || 0;  // Corretto nome campo
+            const availability = (currentData.score || 0) * 100; // Converte da 0-1 a 0-100%
+            const failedPollings = currentData.cumulative_failures || 0;  // Corretto nome campo
             const errorBudget = serviceData.error_budget || 0;
             const weight = serviceData.weight || 0;  // Usa peso dal serviceData
             
             // Aggiorna gauge ECharts
             updateGauge(serviceId, availability);
             
-            // Aggiorna status indicator
+            // Aggiorna status indicator secondo README (< 50% = Critical, 50-80% = Attenzione, > 80% = Good)
             const statusEl = document.getElementById(`status-${serviceId}`);
             statusEl.className = 'status-indicator ';
-            if (availability >= 95) statusEl.className += 'status-excellent';
-            else if (availability >= 85) statusEl.className += 'status-good';
-            else if (availability >= 70) statusEl.className += 'status-degraded';
-            else statusEl.className += 'status-critical';
+            if (availability > 80) statusEl.className += 'status-excellent'; // GOOD
+            else if (availability >= 50) statusEl.className += 'status-degraded'; // ATTENZIONE  
+            else statusEl.className += 'status-critical'; // CRITICAL
             
             // Aggiorna metriche
             document.getElementById(`failed-${serviceId}`).textContent = failedPollings;
@@ -1182,7 +1219,7 @@
             
             // Aggiorna badge di status
             const statusBadge = document.getElementById(`status-badge-${serviceId}`);
-            const statusType = currentData.status || 'unknown';
+            const statusType = currentData.status_type || 'unknown'; // Corretto il nome del campo
             
             // DEBUG: Log per verificare i dati
             console.log(`🔍 Service: ${serviceName}, StatusType: "${statusType}", Data:`, currentData);

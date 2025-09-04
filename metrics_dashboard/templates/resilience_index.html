@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resilience Dashboard - Selezione Analisi</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #ff8c00;
+            --secondary-color: #2c3e50;
+            --success-color: #27ae60;
+            --warning-color: #ff6b35;
+            --danger-color: #e74c3c;
+            --light-bg: #fafafa;
+            --dark-bg: #1e1e1e;
+            --text-light: #2c3e50;
+            --text-dark: #f5f5f5;
+            --accent-red: #e74c3c;
+            --card-light: #ffffff;
+            --card-dark: #2d2d2d;
+            --border-light: #e9ecef;
+            --border-dark: #404040;
+        }
+
+        [data-theme="dark"] {
+            --light-bg: var(--dark-bg);
+            --text-light: var(--text-dark);
+            --card-light: var(--card-dark);
+            --border-light: var(--border-dark);
+            background-color: var(--dark-bg);
+            color: var(--text-dark);
+        }
+
+        [data-theme="dark"] .card {
+            background-color: var(--card-dark);
+            border: 1px solid var(--border-dark);
+            color: var(--text-dark);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        [data-theme="dark"] .text-muted {
+            color: #a0a0a0 !important;
+        }
+
+        [data-theme="dark"] .subtitle {
+            color: #a0a0a0;
+        }
+
+        body {
+            background-color: var(--light-bg);
+            color: var(--text-light);
+            transition: all 0.3s ease;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        .main-container {
+            min-height: 100vh;
+            background: linear-gradient(135deg, var(--accent-red), #c0392b);
+            padding: 2rem 0;
+        }
+
+        .main-card {
+            background: var(--card-light);
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            border: none;
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        .header-section {
+            text-align: center;
+            padding: 3rem 2rem 2rem;
+        }
+
+        .header-icon {
+            color: var(--accent-red);
+            filter: drop-shadow(0 4px 8px rgba(231, 76, 60, 0.3));
+            margin-bottom: 1.5rem;
+        }
+
+        .main-title {
+            background: linear-gradient(135deg, var(--accent-red), #c0392b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 900;
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .subtitle {
+            color: #6c757d;
+            font-size: 1.2rem;
+            margin-bottom: 0;
+        }
+
+        .file-card {
+            border: 2px solid var(--border-light);
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .file-card:hover {
+            border-color: var(--accent-red);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(231, 76, 60, 0.2);
+        }
+
+        .file-card.selected {
+            border-color: var(--accent-red);
+            background: rgba(231, 76, 60, 0.05);
+        }
+
+        .file-card h6 {
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            hyphens: auto;
+            margin-bottom: 0.5rem;
+        }
+
+        .file-info {
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            hyphens: auto;
+        }
+
+        .filename-text {
+            font-size: 0.85rem;
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            line-height: 1.3;
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-date {
+            color: var(--accent-red);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-red), #c0392b);
+            border: none;
+            border-radius: 12px;
+            padding: 15px 30px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: linear-gradient(135deg, #c0392b, var(--accent-red));
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(231, 76, 60, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            border-radius: 12px;
+            padding: 15px 30px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-1px);
+        }
+
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: var(--card-light);
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: var(--card-light);
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .back-button:hover, .theme-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .theme-toggle i, .back-button i {
+            color: var(--accent-red);
+            font-size: 1.2rem;
+        }
+
+        .no-files-section {
+            text-align: center;
+            padding: 2rem;
+            color: #6c757d;
+        }
+
+        .loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        @media (max-width: 768px) {
+            .main-title {
+                font-size: 2rem;
+            }
+            
+            .header-section {
+                padding: 2rem 1rem 1rem;
+            }
+            
+            .file-card {
+                padding: 1rem;
+            }
+            
+            .btn-primary,
+            .btn-secondary {
+                padding: 12px 20px;
+                font-size: 1rem;
+            }
+            
+            .theme-toggle,
+            .back-button {
+                position: relative;
+                top: unset;
+                right: unset;
+                left: unset;
+                margin: 10px;
+            }
+            
+            .theme-toggle {
+                text-align: center;
+                margin-bottom: 1rem;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .main-container {
+                padding: 1rem 0;
+            }
+            
+            .main-card {
+                border-radius: 15px;
+            }
+            
+            .header-section {
+                padding: 1.5rem 1rem 1rem;
+            }
+            
+            .header-icon i {
+                font-size: 3rem;
+            }
+            
+            .main-title {
+                font-size: 1.75rem;
+            }
+            
+            .subtitle {
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body data-theme="light">
+    <button class="back-button btn" onclick="goBack()" title="Torna alla selezione" aria-label="Torna indietro">
+        <i class="fas fa-arrow-left"></i>
+    </button>
+
+    <button class="theme-toggle btn" onclick="toggleTheme()" title="Cambia tema">
+        <i class="fas fa-moon" id="theme-icon"></i>
+    </button>
+
+    <div class="main-container">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-lg-8 col-xl-6">
+                    <div class="main-card">
+                        <div class="header-section">
+                            <div class="header-icon">
+                                <i class="fas fa-shield-alt fa-5x" aria-hidden="true"></i>
+                            </div>
+                            <h1 class="main-title">Resilience Dashboard</h1>
+                            <p class="subtitle">Seleziona un'analisi esistente o generane una nuova</p>
+                        </div>
+
+                        <div class="p-4">
+                            {% if has_files %}
+                                <h4 class="mb-4">
+                                    <i class="fas fa-history me-2" style="color: var(--accent-red);" aria-hidden="true"></i>
+                                    Analisi Disponibili
+                                </h4>
+                                
+                                <div id="files-list">
+                                    {% for file in json_files %}
+                                    <div class="file-card" onclick="selectFile(event, '{{ file.filename }}')" onkeypress="handleCardKeypress(event, '{{ file.filename }}')" role="button" tabindex="0" aria-label="Seleziona analisi {{ file.generation_date_short }}">
+                                        <div class="row align-items-center">
+                                            <div class="col-12">
+                                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                                    <div class="file-info flex-grow-1 me-3">
+                                                        <h6 class="mb-1">
+                                                            <i class="fas fa-shield-alt me-2 text-danger" aria-hidden="true"></i>
+                                                            Analisi {{ file.generation_date_short }}
+                                                        </h6>
+                                                        <small class="text-muted d-block mb-1">
+                                                            <i class="fas fa-clock me-1" aria-hidden="true"></i>
+                                                            {% if file.simulation_period and file.simulation_period.start %}
+                                                                {{ file.simulation_period.start[:19].replace('T', ' ') }}
+                                                            {% else %}
+                                                                Data non disponibile
+                                                            {% endif %}
+                                                        </small>
+                                                    </div>
+                                                    <div class="text-end flex-shrink-0">
+                                                        <div class="file-date">{{ file.total_assets }} entità</div>
+                                                    </div>
+                                                </div>
+                                                <div class="filename-container">
+                                                    <small class="filename-text text-muted" title="{{ file.filename }}">
+                                                        <i class="fas fa-file me-1" aria-hidden="true"></i>
+                                                        {{ file.filename }}
+                                                    </small>
+                                                </div>
+                                                <div class="mt-2">
+                                                    <span class="badge bg-secondary">
+                                                        <i class="fas fa-server me-1" aria-hidden="true"></i>
+                                                        {{ file.total_assets }} Asset Totali (inclusi Backup Jobs)
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+
+                                <div class="d-grid gap-2 mt-4">
+                                    <button class="btn btn-primary" onclick="loadSelectedFile()" id="load-btn" disabled>
+                                        <i class="fas fa-play me-2" aria-hidden="true"></i>
+                                        Carica Analisi Selezionata
+                                    </button>
+                                    <button class="btn btn-secondary" onclick="generateNew()">
+                                        <i class="fas fa-plus me-2" aria-hidden="true"></i>
+                                        Genera Nuova Analisi
+                                    </button>
+                                </div>
+                            {% else %}
+                                <div class="no-files-section">
+                                    <i class="fas fa-inbox fa-4x mb-3" style="color: #dee2e6;" aria-hidden="true"></i>
+                                    <h5>Nessuna analisi disponibile</h5>
+                                    <p>Non sono state trovate analisi resilience precedenti. Genera la prima analisi per iniziare.</p>
+                                    
+                                    <div class="d-grid mt-4">
+                                        <button class="btn btn-primary" onclick="generateNew()">
+                                            <i class="fas fa-rocket me-2" aria-hidden="true"></i>
+                                            Genera Prima Analisi
+                                        </button>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let selectedFile = null;
+
+        function goBack() {
+            window.location.href = '/';
+        }
+
+        function selectFile(event, filename) {
+            console.log('File selezionato:', filename);
+            
+            // Rimuovi selezione precedente
+            document.querySelectorAll('.file-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+
+            // Seleziona il file corrente
+            event.currentTarget.classList.add('selected');
+            selectedFile = filename;
+            
+            console.log('selectedFile impostato a:', selectedFile);
+
+            // Abilita il pulsante di caricamento
+            document.getElementById('load-btn').disabled = false;
+        }
+
+        function handleCardKeypress(event, filename) {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                selectFile(event, filename);
+            }
+        }
+
+        function loadSelectedFile() {
+            console.log('Caricamento file:', selectedFile);
+            if (selectedFile) {
+                // Aggiungi effetto di caricamento
+                document.body.classList.add('loading');
+                
+                const encodedFilename = encodeURIComponent(selectedFile);
+                const url = `/resilience/load_json/${encodedFilename}`;
+                console.log('Navigando verso:', url);
+                window.location.href = url;
+            } else {
+                console.error('Nessun file selezionato');
+                alert('Per favore seleziona un\'analisi prima di procedere.');
+            }
+        }
+
+        function generateNew() {
+            document.body.classList.add('loading');
+            window.location.href = '/resilience/config';
+        }
+
+        function toggleTheme() {
+            const body = document.body;
+            const themeIcon = document.getElementById('theme-icon');
+            
+            if (body.getAttribute('data-theme') === 'dark') {
+                body.setAttribute('data-theme', 'light');
+                themeIcon.className = 'fas fa-moon';
+                themeIcon.setAttribute('aria-label', 'Attiva tema scuro');
+            } else {
+                body.setAttribute('data-theme', 'dark');
+                themeIcon.className = 'fas fa-sun';
+                themeIcon.setAttribute('aria-label', 'Attiva tema chiaro');
+            }
+            
+            // Salva la preferenza del tema
+            localStorage.setItem('theme', body.getAttribute('data-theme'));
+        }
+
+        // Carica il tema salvato all'avvio
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('theme');
+            const themeIcon = document.getElementById('theme-icon');
+            
+            if (savedTheme) {
+                document.body.setAttribute('data-theme', savedTheme);
+                if (savedTheme === 'dark') {
+                    themeIcon.className = 'fas fa-sun';
+                    themeIcon.setAttribute('aria-label', 'Attiva tema chiaro');
+                } else {
+                    themeIcon.className = 'fas fa-moon';
+                    themeIcon.setAttribute('aria-label', 'Attiva tema scuro');
+                }
+            }
+            
+            // Aggiungi focus style per accessibilità
+            document.querySelectorAll('.file-card').forEach(card => {
+                card.addEventListener('focus', function() {
+                    this.style.outline = '2px solid var(--accent-red)';
+                    this.style.outlineOffset = '2px';
+                });
+                
+                card.addEventListener('blur', function() {
+                    this.style.outline = 'none';
+                });
+            });
+        });
+    </script>
+</body>
+</html>
