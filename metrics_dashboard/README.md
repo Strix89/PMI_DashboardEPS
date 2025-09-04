@@ -85,7 +85,6 @@ metrics_dashboard/
 - **Selezione Servizi**: Recupero automatico da collection MongoDB "assets"
 - **Error Budget Personalizzabili**: Configurazione soglie per ogni servizio
 - **Pesi di Criticità**: Definizione dell'impatto di ogni servizio sull'health score aggregato
-- **Finestra Temporale**: Selezione di giorni casuali dal database per analisi
 
 ### **2. Analisi Cumulativa in Background**
 - **Job Manager Asincrono**: Esecuzione di task lunghi senza bloccare l'interfaccia
@@ -140,7 +139,6 @@ FLASK_ENV=production
 
 # Default Parameters
 DEFAULT_ERROR_BUDGET=5
-DEFAULT_ANALYSIS_DAYS=1
 ```
 
 ### **Avvio Applicazione**
@@ -167,12 +165,7 @@ python run.py
    - **Logic**: Query MongoDB collection "assets" per recupero lista servizi
    - **Output**: JSON con service_id, display_name, service_type per ogni servizio
 
-3. **Calcolo Giorni Disponibili**
-   - **Endpoint**: `GET /get_available_days`  
-   - **Logic**: Aggregazione pipeline MongoDB per conteggio giorni con metriche
-   - **Output**: Numero totale di giorni con dati disponibili nel database
-
-4. **Configurazione Parametri**
+3. **Configurazione Parametri**
    - **Error Budget**: Impostazione soglie fallimenti per ogni servizio
    - **Service Weights**: Definizione criticità/impatto per health score aggregato
    - **Validation**: Controlli real-time su range valori (error budget 1-50, weights 1-10)
@@ -243,7 +236,6 @@ Il `CumulativeAvailabilityAnalyzer` implementa la logica principale:
 |----------|--------|-----------|-------------|----------|
 | `/` | GET | - | Pagina di configurazione iniziale | HTML template |
 | `/get_services` | GET | - | Lista servizi da MongoDB collection "assets" | `{success: bool, services: [...]}` |
-| `/get_available_days` | GET | - | Conteggio giorni con metriche disponibili | `{success: bool, available_days: int}` |
 | `/start_analysis` | POST | `config: JSON` | Avvia job di analisi asincrono | `{success: bool, message: string}` |
 | `/job_status` | GET | - | Status corrente del job di analisi | `{status: string, progress: int, result: {...}}` |
 | `/dashboard` | GET | - | Pagina dashboard con risultati | HTML template (redirect se no data) |
@@ -418,7 +410,6 @@ FLASK_DEBUG=True       # per development
 
 # Application Defaults
 DEFAULT_ERROR_BUDGET=5
-DEFAULT_ANALYSIS_DAYS=1
 
 # Logging Configuration
 LOG_LEVEL=INFO

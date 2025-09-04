@@ -307,9 +307,9 @@ class CumulativeAvailabilityAnalyzer:
         self.logger.info("ANALISI CUMULATIVA AVAILABILITY")
         self.logger.info("=" * 80)
         
-        # Ottieni giorni casuali con dati
-        random_dates = self.get_random_days_with_data()
-        if not random_dates:
+        # Ottieni un giorno casuale con dati
+        random_date = self.get_random_day_with_data()
+        if not random_date:
             self.logger.error("Impossibile trovare dati di availability nel database")
             return {}
         
@@ -321,7 +321,7 @@ class CumulativeAvailabilityAnalyzer:
         
         # Struttura risultato
         result = {
-            "analysis_dates": [date.isoformat() for date in random_dates],
+            "analysis_dates": [random_date.isoformat()],
             "analysis_timestamp": datetime.now(UTC).isoformat(),
             "configuration": {
                 "num_days": self.num_days,
@@ -354,21 +354,20 @@ class CumulativeAvailabilityAnalyzer:
             # Ottieni peso del servizio (default: uguale per tutti)
             service_weight = self.service_weights.get(service_name, 1.0 / len(services))
             
-            # Analizza il servizio per tutti i giorni selezionati
+            # Analizza il servizio per il giorno selezionato
             service_analysis_data = []
             cumulative_failures_total = 0
             
-            for date in random_dates:
-                day_analysis = self.analyze_service_day(service_id, date, eb_value)
-                service_analysis_data.extend(day_analysis)
-                
-                # Somma i fallimenti di questo giorno
-                if day_analysis:
-                    day_failures = max([metric.get('cumulative_failures', 0) for metric in day_analysis])
-                    cumulative_failures_total += day_failures
+            day_analysis = self.analyze_service_day(service_id, random_date, eb_value)
+            service_analysis_data.extend(day_analysis)
             
-            # Calcola score finale per il servizio (basato su tutti i giorni)
-            final_score = self.calculate_cumulative_score(cumulative_failures_total, eb_value * len(random_dates))
+            # Somma i fallimenti di questo giorno
+            if day_analysis:
+                day_failures = max([metric.get('cumulative_failures', 0) for metric in day_analysis])
+                cumulative_failures_total += day_failures
+            
+            # Calcola score finale per il servizio (basato sul giorno analizzato)
+            final_score = self.calculate_cumulative_score(cumulative_failures_total, eb_value)
             final_status = self.determine_status_type(final_score)
             
             # Aggiungi ai risultati
@@ -376,7 +375,7 @@ class CumulativeAvailabilityAnalyzer:
                 "service_id": str(service_id),
                 "error_budget": eb_value,
                 "weight": service_weight,
-                "days_analyzed": len(random_dates),
+                "days_analyzed": 1,
                 "total_failures": cumulative_failures_total,
                 "final_score": round(final_score, 4),
                 "final_status": final_status.value,
@@ -398,7 +397,7 @@ class CumulativeAvailabilityAnalyzer:
             "total_services": service_count,
             "aggregated_score": round(aggregated_score, 4),
             "aggregated_status": aggregated_status.value,
-            "total_days_analyzed": len(random_dates)
+            "total_days_analyzed": 1
         }
         
         self.logger.info("=" * 80)
@@ -473,13 +472,7 @@ def main():
     )
     parser.add_argument(
         "--config-file",
-        help="File JSON con configurazione personalizzata (giorni, error budgets, pesi)"
-    )
-    parser.add_argument(
-        "--num-days",
-        type=int,
-        default=1,
-        help="Numero di giorni casuali da analizzare (default: 1)"
+        help="File JSON con configurazione personalizzata (error budgets, pesi)"
     )
     
     args = parser.parse_args()
@@ -495,9 +488,6 @@ def main():
             except Exception as e:
                 logger.error(f"Errore nel caricamento configurazione: {e}")
                 sys.exit(1)
-        elif args.num_days > 1:
-            # Se specificati giorni via parametro, crea una config minima
-            config = {'days': args.num_days}
         
         # Inizializza storage manager
         storage_manager = StorageManager(
