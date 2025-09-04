@@ -103,14 +103,14 @@
         }
 
         .health-score-card {
-            background: linear-gradient(135deg, #c5c5c5, #808080);
+            background: linear-gradient(135deg, #c5c5c5, #949494);
             color: white;
             border-radius: 24px;
             padding: 3rem;
             text-align: center;
             margin-bottom: 2.5rem;
-            box-shadow: 0 12px 40px rgba(255, 140, 0, 0.25);
-            border: 3px solid #ffe4cc; /* Arancione molto chiaro per tema chiaro */
+            box-shadow: 0 12px 40px rgba(63, 63, 63, 0.25);
+            border: 3px solid #797979; /* Arancione molto chiaro per tema chiaro */
             position: relative;
             overflow: hidden;
         }
@@ -217,6 +217,20 @@
             box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
         }
 
+        .status-badge.critical {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+            border: none;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+        }
+
+        .status-badge.attenzione {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+            border: none;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+        }
+
         .status-badge.unknown {
             background: linear-gradient(135deg, #6b7280, #4b5563);
             color: white;
@@ -240,6 +254,16 @@
         }
 
         [data-theme="dark"] .status-badge.degraded {
+            background: linear-gradient(135deg, #f59e0b, #b45309);
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+        }
+
+        [data-theme="dark"] .status-badge.critical {
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+        }
+
+        [data-theme="dark"] .status-badge.attenzione {
             background: linear-gradient(135deg, #f59e0b, #b45309);
             box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
         }
@@ -1156,9 +1180,9 @@
             document.getElementById(`expected-${serviceId}`).textContent = errorBudget;
             document.getElementById(`weight-${serviceId}`).textContent = weight.toFixed(3);
             
-            // Aggiorna badge di status - DEBUG MIGLIORATO
+            // Aggiorna badge di status
             const statusBadge = document.getElementById(`status-badge-${serviceId}`);
-            const statusType = currentData.status_type || 'unknown';
+            const statusType = currentData.status || 'unknown';
             
             // DEBUG: Log per verificare i dati
             console.log(`🔍 Service: ${serviceName}, StatusType: "${statusType}", Data:`, currentData);
@@ -1168,13 +1192,21 @@
             
             // Aggiungi la classe appropriata e imposta il testo
             switch (statusType.toUpperCase()) {
-                case 'UP':
-                    statusBadge.classList.add('up');
-                    statusBadge.textContent = 'UP';
-                    break;
                 case 'GOOD':
                     statusBadge.classList.add('good');
                     statusBadge.textContent = 'GOOD';
+                    break;
+                case 'CRITICAL':
+                    statusBadge.classList.add('critical');
+                    statusBadge.textContent = 'CRITICAL';
+                    break;
+                case 'ATTENZIONE':
+                    statusBadge.classList.add('attenzione');
+                    statusBadge.textContent = 'ATTENZIONE';
+                    break;
+                case 'UP':
+                    statusBadge.classList.add('up');
+                    statusBadge.textContent = 'UP';
                     break;
                 case 'DOWN':
                     statusBadge.classList.add('down');
