@@ -1,30 +1,36 @@
-# Metrics Dashboard - Sistema di Monitoraggio Availability
+# Metrics Dashboard - Sistema di Monitoraggio Availability e Resilience
 
-**Metrics Dashboard** è una web application Flask avanzata che fornisce analisi cumulativa e monitoraggio real-time delle metriche di availability per servizi infrastrutturali. Il sistema connette a MongoDB per recuperare metriche operative e genera dashboard interattive per il monitoraggio della salute dei servizi.
+**Metrics Dashboard** è una web application Flask avanzata che fornisce analisi cumulativa e monitoraggio real-time delle metriche di **availability** e **resilience** per servizi infrastrutturali e sistemi di backup. Il sistema connette a MongoDB per recuperare metriche operative e genera dashboard interattive per il monitoraggio della salute dei servizi e della resilienza dei backup.
 
 ## 🏗️ Architettura del Sistema
 
 ### **Componenti Principali**
 
 1. **Flask Web Application** (`app.py`)
-   - Server web principale con routing e API endpoints
+   - Server web principale con routing e API endpoints per entrambi i moduli
    - Gestione sessioni utente e configurazioni personalizzate
-   - Job manager per analisi asincrone in background
+   - Job manager per analisi asincrone in background per availability e resilience
 
-2. **Cumulative Availability Analyzer** (`utils/cumulative_availability_analyzer.py`)
-   - Motore di calcolo delle metriche cumulative
-   - Algoritmo di scoring basato su error budget configurabili
-   - Analisi di timeline temporali con generazione di JSON strutturati
+2. **Availability Analytics**
+   - **Cumulative Availability Analyzer** (`utils/cumulative_availability_analyzer.py`)
+     - Motore di calcolo delle metriche cumulative di disponibilità servizi
+     - Algoritmo di scoring basato su error budget configurabili
+   - **Availability Summary** (`utils/availability_summary.py`)
+     - Modulo di aggregazione e riepilogo delle metriche di availability
 
-3. **Availability Summary** (`utils/availability_summary.py`)
-   - Modulo di aggregazione e riepilogo delle metriche
-   - Calcolo di health score ponderati per servizio
+3. **Resilience Analytics** (NUOVO)
+   - **Cumulative Resilience Analyzer** (`utils/cumulative_resilience_analyzer.py`)
+     - Motore di analisi della resilienza dei sistemi di backup
+     - Calcolo di RPO Compliance e Success Rate per backup jobs e asset
+     - Scoring ponderato basato su parametri configurabili
+   - **Backup Summary** (`utils/backup_summary.py`)
+     - Modulo di aggregazione per metriche di backup e resilienza
 
 4. **Storage Layer Integration**
    - Integrazione con `storage_layer.storage_manager` per connettività MongoDB
-   - Accesso a collection "assets" e "metrics" del database PMI
+   - Accesso a collection "assets", "metrics" e dati di backup del database PMI
 
-## 🔬 Algoritmo di Scoring
+## 🔬 Algoritmi di Scoring
 
 ### **Formula Cumulativa di Availability**
 
@@ -41,15 +47,44 @@ S(P_f, E_b) =
 - `P_f` = Numero di fallimenti cumulativi per servizio
 - `E_b` = Error Budget configurabile per tipo di servizio
 
+### **Formula Cumulativa di Resilience** (NUOVO)
+
+Il sistema calcola la resilience dei backup utilizzando un approccio multi-metrica:
+
+```
+Resilience_Score = (w_RPO × RPO_Compliance) + (w_Success × Success_Rate)
+```
+
+**Dove:**
+- `RPO_Compliance = max(0, 1 - (actual_RPO / target_RPO))`
+- `Success_Rate = backup_riusciti_cumulativi / backup_totali_cumulativi`
+- `w_RPO` = Peso per RPO Compliance (default: 60%)
+- `w_Success` = Peso per Success Rate (default: 40%)
+
+**Target RPO Default per Tipo Asset:**
+- Virtual Machines: 24 ore
+- Container: 12 ore
+- Server Fisici: 48 ore
+- Nodi Proxmox: 24 ore
+- Backup Jobs Acronis: 24 ore
+
 ### **Classificazione Status**
 
-Il sistema categorizza automaticamente ogni servizio basandosi sul valore percentuale:
-
+**Availability Status:**
 | Score Range | Status | Descrizione |
 |-------------|---------|-------------|
 | < 50% | **CRITICAL** | Servizio in stato critico |
 | 50% - 80% | **ATTENZIONE** | Servizio degradato |
 | > 80% | **GOOD** | Servizio operativo |
+
+**Resilience Status:** (NUOVO)
+| Score Range | Status | Descrizione |
+|-------------|---------|-------------|
+| > 90% | **EXCELLENT** | Resilienza eccellente |
+| 75% - 90% | **GOOD** | Resilienza buona |
+| 60% - 75% | **ACCEPTABLE** | Resilienza accettabile |
+| 40% - 60% | **CRITICAL** | Resilienza critica |
+| < 40% | **SEVERE** | Resilienza severa |
 
 ```
 metrics_dashboard/
@@ -62,9 +97,15 @@ metrics_dashboard/
 ├── __init__.py                    # Package initialization
 ├── templates/                     # Template HTML Jinja2
 │   ├── base.html                 # Template base (se presente)
-│   ├── index.html                # Pagina principale di configurazione
-│   ├── config.html               # Interfaccia step-by-step configuration
-│   └── dashboard.html            # Dashboard real-time dei risultati
+│   ├── index.html                # Pagina principale di selezione modulo
+│   # AVAILABILITY MODULE
+│   ├── availability_index.html   # Pagina selezione analisi availability
+│   ├── availability_config.html  # Interfaccia configurazione availability
+│   └── availability_dashboard.html # Dashboard real-time availability
+│   # RESILIENCE MODULE (NUOVO)
+│   ├── resilience_index.html     # Pagina selezione analisi resilience  
+│   ├── resilience_config.html    # Interfaccia configurazione resilience
+│   └── resilience_dashboard.html # Dashboard real-time resilience
 ├── static/                       # Assets statici (CSS, JS, immagini)
 │   ├── css/
 │   │   └── style.css            # Fogli di stile custom
@@ -73,30 +114,64 @@ metrics_dashboard/
 │       ├── dashboard.js          # Logic dashboard interattiva
 │       └── theme.js              # Gestione tema chiaro/scuro
 ├── utils/                        # Moduli di utility e business logic
-│   ├── cumulative_availability_analyzer.py  # Core analyzer engine
-│   └── availability_summary.py              # Summary aggregator
+│   # AVAILABILITY ANALYTICS
+│   ├── cumulative_availability_analyzer.py  # Core analyzer engine availability
+│   ├── availability_summary.py              # Summary aggregator availability
+│   # RESILIENCE ANALYTICS (NUOVO)
+│   ├── cumulative_resilience_analyzer.py    # Core analyzer engine resilience
+│   └── backup_summary.py                    # Summary aggregator backup/resilience
 ├── output/                       # Directory per output JSON generati
+│   ├── cumulative_availability_analysis_*.json  # Report availability
+│   └── resilience_analysis_*.json               # Report resilience (NUOVO)
 └── __pycache__/                  # Cache Python compilato
 ```
 
 ## 🚀 Funzionalità Principali
 
-### **1. Configurazione Dinamica dei Parametri**
+### **Modulo Availability**
+
+#### **1. Configurazione Dinamica dei Parametri**
 - **Selezione Servizi**: Recupero automatico da collection MongoDB "assets"
 - **Error Budget Personalizzabili**: Configurazione soglie per ogni servizio
 - **Pesi di Criticità**: Definizione dell'impatto di ogni servizio sull'health score aggregato
 
-### **2. Analisi Cumulativa in Background**
+#### **2. Analisi Cumulativa in Background**
 - **Job Manager Asincrono**: Esecuzione di task lunghi senza bloccare l'interfaccia
 - **Progress Tracking**: Monitoraggio dello stato di avanzamento delle analisi
 - **Subprocess Execution**: Invocazione del cumulative analyzer come processo separato
 - **Error Handling**: Gestione completa degli errori durante l'analisi
 
-### **3. Dashboard Real-time Interattiva**
+#### **3. Dashboard Real-time Interattiva**
 - **Tachimetri Semicircolari**: Visualizzazione percentuale availability per servizio
 - **Health Score Aggregato**: Calcolo ponderato basato su criticità configurate
 - **Timeline Navigation**: Controlli play/pause per scorrimento temporale dei dati
 - **Status Indicators**: Codifica a colori per stato operativo (Critical/Attenzione/Good)
+
+### **Modulo Resilience** (NUOVO)
+
+#### **1. Configurazione Avanzata RPO e Pesi**
+- **Target RPO Personalizzabili**: Configurazione obiettivi RPO per asset e backup jobs
+- **Pesi Metriche Configurabili**: Bilanciamento tra RPO Compliance e Success Rate
+- **Selezione Asset e Backup Jobs**: Recupero automatico da MongoDB con filtri per tipo
+- **Configurazione per Tipo Asset**: VM, Container, Server Fisici, Nodi Proxmox
+
+#### **2. Analisi Resilience Cumulativa**
+- **Simulazione Settimanale**: Analisi ora per ora per 168 ore (1 settimana)
+- **RPO Compliance Calculation**: Monitoraggio deviazioni dai target RPO configurati
+- **Success Rate Tracking**: Calcolo percentuale successo backup cumulativo
+- **Weighted Scoring**: Combinazione ponderata delle metriche con pesi configurabili
+
+#### **3. Dashboard Resilience Interattiva**
+- **Grafico a Ciambella Aggregato**: Visualizzazione distribuzione livelli di resilience
+- **Indicatori Circolari**: Score resilience per singolo asset/backup job
+- **Timeline Temporale**: Navigazione cronologica dell'andamento resilience
+- **Status Colorati**: Classificazione visiva (Excellent/Good/Acceptable/Critical/Severe)
+
+#### **4. Gestione File JSON di Output**
+- **Selezione File Esistenti**: Caricamento analisi resilience precedenti
+- **Report Strutturati**: File JSON con configurazione, timeline e metriche dettagliate
+- **Timestamp Automatico**: Nomenclatura file con data/ora generazione
+- **Persistenza Configurazione**: Salvataggio parametri per riuso futuro
 
 ### **4. Integrazione Storage Layer**
 - **MongoDB Connection**: Accesso diretto al database PMI infrastructure
@@ -154,27 +229,36 @@ python run.py
 
 ## 💻 Workflow Operativo Dettagliato
 
-### **Phase 1: Configurazione Iniziale**
+### **Selezione Modulo**
 
-1. **Accesso Pagina Principale** (`http://localhost:5001`)
-   - Routing verso template `index.html` o `config.html`
-   - Inizializzazione sessione Flask per configurazione utente
+**Pagina Principale** (`http://localhost:5001`)
+- **Availability Module**: Monitoraggio disponibilità servizi infrastrutturali
+- **Resilience Module**: Analisi resilienza backup e RPO compliance
+
+### **Availability Workflow**
+
+#### **Phase 1: Configurazione Availability**
+
+1. **Accesso Pagina Availability** (`/availability`)
+   - Selezione tra file JSON esistenti o nuova configurazione
+   - Routing verso template `availability_index.html`
 
 2. **Recupero Servizi Disponibili**
    - **Endpoint**: `GET /get_services`
    - **Logic**: Query MongoDB collection "assets" per recupero lista servizi
    - **Output**: JSON con service_id, display_name, service_type per ogni servizio
 
-3. **Configurazione Parametri**
+3. **Configurazione Parametri** (`/availability/config`)
    - **Error Budget**: Impostazione soglie fallimenti per ogni servizio
    - **Service Weights**: Definizione criticità/impatto per health score aggregato
    - **Validation**: Controlli real-time su range valori (error budget 1-50, weights 1-10)
 
-### **Phase 2: Esecuzione Analisi**
+#### **Phase 2: Esecuzione Analisi Availability**
 
 1. **Avvio Job di Analisi**
    - **Endpoint**: `POST /start_analysis`
    - **Payload**: Configurazione JSON con parametri utente
+   - **Analysis Type**: `"availability"`
    - **Logic**: `AnalysisJobManager.start_analysis()` crea thread separato
 
 2. **Background Processing**
@@ -188,41 +272,88 @@ python run.py
      --config-file temp_config.json
      ```
 
-3. **Progress Monitoring**
-   - **Endpoint**: `GET /job_status`
-   - **Status Types**: `idle`, `running`, `completed`, `error`
-   - **Progress**: Percentuale 0-100% con step intermedi
+### **Resilience Workflow** (NUOVO)
 
-### **Phase 3: Analisi Core Algorithm**
+#### **Phase 1: Configurazione Resilience**
 
-Il `CumulativeAvailabilityAnalyzer` implementa la logica principale:
+1. **Accesso Pagina Resilience** (`/resilience`)
+   - Selezione tra file JSON resilience esistenti o nuova configurazione
+   - Routing verso template `resilience_index.html`
+   - Lista file `resilience_analysis_*.json` disponibili
 
-1. **Data Selection**
-   - Selezione casuale di 1 giorno con metriche disponibili
-   - Query aggregated per recupero metriche ordinate temporalmente
+2. **Recupero Asset e Backup Jobs**
+   - **Endpoint**: `GET /get_services` (per asset)
+   - **Endpoint**: `GET /get_backup_jobs` (per backup jobs Acronis)
+   - **Logic**: Query MongoDB per asset con backup e backup jobs configurati
 
-2. **Cumulative Calculation**
-   - **Loop temporale**: Iterazione su tutti i timestamp del giorno selezionato
-   - **Failure Accumulation**: Conteggio cumulativo fallimenti per servizio
-   - **Score Calculation**: Applicazione formula con error budget personalizzati
+3. **Configurazione Parametri Resilience** (`/resilience/config`)
+   - **Target RPO**: Configurazione obiettivi RPO in ore per ogni asset/backup job
+   - **Metric Weights**: Bilanciamento w_RPO (60%) e w_Success (40%)
+   - **Asset Selection**: Selezione asset da includere nell'analisi
+   - **Validation**: Controlli su range RPO (1-168 ore) e pesi (0.0-1.0)
 
-3. **Status Classification**
-   - Mapping score percentuale → StatusType enum (CRITICAL/ATTENZIONE/GOOD)
-   - Soglie configurabili: <50% = Critical, 50-80% = Attenzione, >80% = Good
+#### **Phase 2: Esecuzione Analisi Resilience**
 
-4. **Output Generation**
-   - **JSON Structure**: File dettagliato in directory `output/`
-   - **Timeline Data**: Array di datapoints per ogni servizio
-   - **Summary Aggregated**: Health score ponderato complessivo
+1. **Avvio Job di Analisi Resilience**
+   - **Endpoint**: `POST /start_analysis`
+   - **Analysis Type**: `"resilience"`
+   - **Payload**: Configurazione con target RPO e pesi personalizzati
 
-### **Phase 4: Dashboard Visualization**
+2. **Background Processing Resilience**
+   - **Subprocess Call**: Esecuzione `cumulative_resilience_analyzer.py`
+   - **Simulazione**: 168 ore (1 settimana) di analisi cumulativa
+   - **Output**: File `resilience_analysis_YYYYMMDD_HHMMSS.json`
 
-1. **Data Retrieval**
-   - **Endpoint**: `GET /get_dashboard_data`
-   - **Logic**: Parsing del JSON generato e trasformazione per frontend
+#### **Phase 3: Algoritmo Resilience Core**
 
-2. **Real-time Simulation**
-   - **Timeline Scrolling**: Simulazione real-time scorrendo progressivamente i timestamp
+1. **RPO Compliance Calculation**
+   ```python
+   RPO_Compliance = max(0, 1 - (actual_RPO / target_RPO))
+   ```
+   - **Actual RPO**: Tempo trascorso dall'ultimo backup riuscito
+   - **Target RPO**: Obiettivo configurato per asset/backup job
+
+2. **Success Rate Tracking**
+   ```python
+   Success_Rate = backup_riusciti_cumulativi / backup_totali_cumulativi
+   ```
+
+3. **Weighted Resilience Score**
+   ```python
+   Resilience = (w_RPO × RPO_Compliance) + (w_Success × Success_Rate)
+   ```
+
+4. **Status Classification**
+   - **EXCELLENT** (>90%): Resilienza eccellente
+   - **GOOD** (75-90%): Resilienza buona  
+   - **ACCEPTABLE** (60-75%): Resilienza accettabile
+   - **CRITICAL** (40-60%): Resilienza critica
+   - **SEVERE** (<40%): Resilienza severa
+
+#### **Phase 4: Dashboard Resilience Visualization**
+
+1. **Data Retrieval** (`/resilience/get_dashboard_data`)
+   - Parsing JSON resilience e trasformazione per frontend
+   - Calcolo aggregati per grafico a ciambella
+
+2. **Visualizzazioni Interattive**
+   - **Donut Chart**: Distribuzione livelli resilience aggregati
+   - **Circular Indicators**: Score individuale per asset/backup job
+   - **Timeline Navigation**: Scorrimento temporale 168 ore
+   - **Status Indicators**: Codifica colori per livelli resilience
+
+### **Gestione Comune (Entrambi i Moduli)**
+
+#### **Progress Monitoring**
+- **Endpoint**: `GET /job_status`
+- **Status Types**: `idle`, `running`, `completed`, `error`
+- **Progress**: Percentuale 0-100% con step intermedi
+
+#### **File Management**
+- **Output Directory**: `metrics_dashboard/output/`
+- **Availability Files**: `cumulative_availability_analysis_*.json`
+- **Resilience Files**: `resilience_analysis_*.json`
+- **Load Existing**: Caricamento file precedenti tramite interfaccia web
    - **Update Frequency**: Default 60 secondi configurabile
    - **Controls**: Play/Pause, Reset, Speed multiplier
 
@@ -523,10 +654,12 @@ logger.setLevel(logging.ERROR)  # Critical only
 
 ### **Business Metrics**
 
-- **Analysis Frequency**: Numero di analisi per giorno/ora
-- **Service Coverage**: Percentuale servizi monitorati
-- **User Engagement**: Utilizzo dashboard e configurazioni
-- **Data Quality**: Completezza dati availability
+- **Analysis Frequency**: Numero di analisi availability e resilience per giorno/ora
+- **Service Coverage**: Percentuale servizi monitorati per availability
+- **Backup Coverage**: Percentuale asset con backup monitorati per resilience (NUOVO)
+- **RPO Compliance**: Tracking compliance ai target RPO configurati (NUOVO)
+- **User Engagement**: Utilizzo dashboard availability vs resilience
+- **Data Quality**: Completezza dati availability e backup metrics
 
 ## 🧪 Testing e Quality Assurance
 
@@ -568,21 +701,47 @@ python -m pytest --cov=metrics_dashboard --cov-report=html
 ### **PMI Dashboard EPS Ecosystem**
 
 1. **Storage Layer**: Shared MongoDB access con altri componenti
-2. **Asset Management**: Utilizzo modelli comuni per asset
+2. **Asset Management**: Utilizzo modelli comuni per asset con estensione backup data
 3. **Network Discovery**: Correlation con network topology data
-4. **Proxmox Integration**: Metriche infrastructure da Proxmox API
-5. **Acronis Integration**: Backup status correlation
+4. **Proxmox Integration**: Metriche infrastructure da Proxmox API con backup correlation
+5. **Acronis Integration**: Backup status correlation e RPO tracking per resilience (NUOVO)
 
 ### **External Systems**
 
-- **Monitoring Systems**: Prometheus metrics export
-- **Alerting**: Integration con PagerDuty, Slack per alerting
-- **Ticketing**: JIRA integration per incident management
-- **Reporting**: Export data per business intelligence tools
+- **Monitoring Systems**: Prometheus metrics export per availability e resilience
+- **Alerting**: Integration con PagerDuty, Slack per alerting su threshold availability/RPO
+- **Ticketing**: JIRA integration per incident management e backup failures  
+- **Reporting**: Export data per business intelligence tools con metriche resilience
+- **Backup Systems**: API integration con Acronis e altri backup vendor (NUOVO)
 
 ---
 
-## 👨‍💻 Development Guidelines
+## � Riepilogo Funzionalità Resilience Module
+
+Il **Modulo Resilience** rappresenta un'estensione completa del Metrics Dashboard che introduce il monitoraggio avanzato della resilienza dei sistemi di backup. Le caratteristiche principali includono:
+
+### **Caratteristiche Distintive**
+
+✅ **Analisi RPO Compliance**: Monitoraggio automatico della conformità ai Recovery Point Objective configurati  
+✅ **Multi-Asset Support**: Supporto per VM, Container, Server Fisici, Nodi Proxmox e Backup Jobs Acronis  
+✅ **Weighted Scoring**: Sistema di punteggio ponderato configurabile tra RPO e Success Rate  
+✅ **Timeline Analysis**: Analisi cumulativa su 168 ore (1 settimana) con granularità oraria  
+✅ **Interactive Dashboard**: Visualizzazioni interattive con grafici a ciambella e indicatori circolari  
+✅ **Custom Configuration**: Target RPO e pesi personalizzabili per ogni asset/backup job  
+✅ **Status Classification**: 5 livelli di resilience (Excellent/Good/Acceptable/Critical/Severe)  
+✅ **JSON Export**: Report strutturati con configurazione e metriche dettagliate  
+
+### **Casi d'Uso Tipici**
+
+🎯 **Compliance Monitoring**: Verifica conformità ai SLA di backup aziendali  
+🎯 **Risk Assessment**: Identificazione asset con resilience inadeguata  
+🎯 **Capacity Planning**: Analisi trend per dimensionamento backup infrastructure  
+🎯 **SLA Reporting**: Generazione report per management e audit  
+🎯 **Preventive Maintenance**: Early warning per degradation backup performance  
+
+---
+
+## �👨‍💻 Development Guidelines
 
 ### **Code Style**
 - **PEP 8**: Python code formatting standard
@@ -598,5 +757,6 @@ python -m pytest --cov=metrics_dashboard --cov-report=html
 
 ---
 
-**🏢 Sviluppato per PMI Dashboard EPS Infrastructure Monitoring**
-**🚀 Version 1.0 - Production Ready**
+**🏢 Sviluppato per PMI Dashboard EPS Infrastructure Monitoring**  
+**🚀 Version 2.0 - Production Ready con Resilience Module**  
+**📊 Dual Module Architecture: Availability + Resilience Analytics**
