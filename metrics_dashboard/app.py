@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, Blueprint
 import os
 import sys
 import json
@@ -20,12 +20,18 @@ from storage_layer.storage_manager import StorageManager
 from storage_layer.models import AssetDocument
 from storage_layer.exceptions import StorageManagerError
 
+# Import Six Sigma utilities
+from utils.sixsigma_blueprint import get_collection, calcola_baseline, monitora_nuovo_dato, BASELINE_DATA_POINTS
+
 # Configurazione logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'availability-dashboard-secret-key-2025')
+
+# Cache per le baseline Six Sigma
+baseline_cache = {}
 
 # Configurazione database (da file .env)
 DATABASE_CONFIG = {
@@ -286,6 +292,79 @@ def resilience_index():
     return render_template('resilience_index.html', 
                          json_files=json_files, 
                          has_files=len(json_files) > 0)
+
+@app.route('/sixsigma')
+def sixsigma_index():
+    """Pagina Six Sigma SPC Dashboard"""
+    return render_template('sixsigma_index.html')
+
+@app.route('/sixsigma/api/macchine')
+def sixsigma_get_macchine():
+    """API che restituisce la lista delle macchine uniche presenti nel database."""
+    collection = get_collection()
+    macchine = collection.distinct("machine_id")
+    return jsonify(macchine)
+
+@app.route('/sixsigma/api/baseline/<machine_id>')
+def sixsigma_get_baseline(machine_id):
+    """API per caricare tutti i parametri di baseline per una macchina selezionata."""
+    baselines = {
+        "cpu": calcola_baseline(machine_id, "cpu", baseline_cache),
+        "ram": calcola_baseline(machine_id, "ram", baseline_cache),
+        "io_wait": calcola_baseline(machine_id, "io_wait", baseline_cache)
+    }
+    if any(b is None for b in baselines.values()):
+        return jsonify({"error": "Dati insufficienti per calcolare la baseline"}), 500
+    return jsonify(baselines)
+
+@app.route('/sixsigma/api/data/<machine_id>/<int:offset>')
+def sixsigma_get_next_data(machine_id, offset):
+    """API che simula il tempo reale per Six Sigma"""
+    collection = get_collection()
+    
+    history_limit = 20
+    skip_offset = BASELINE_DATA_POINTS + offset
+    start_skip = max(0, skip_offset - history_limit)
+    
+    cursor = collection.find({"machine_id": machine_id}).sort("timestamp", 1).skip(start_skip).limit(history_limit + 1)
+    dati = list(cursor)
+
+    if len(dati) <= 1:
+        return jsonify({"error": "Fine dei dati di simulazione"}), 404
+    
+    dato_corrente = dati[-1]
+    cronologia_dati = dati[:-1]
+    
+    scores, stati, moving_ranges = {}, {}, {}
+    
+    for metrica in ["cpu", "ram", "io_wait"]:
+        baseline = baseline_cache.get(f"{machine_id}_{metrica}")
+        if not baseline:
+            return jsonify({"error": f"Baseline per {metrica} non trovata. Caricarla prima."}), 500
+
+        valore_corrente = dato_corrente['metrics'][f'{metrica}_percent']
+        cronologia_metrica = [d['metrics'][f'{metrica}_percent'] for d in cronologia_dati]
+        valore_precedente = cronologia_metrica[-1] if cronologia_metrica else 0
+        
+        stato, score = monitora_nuovo_dato(valore_corrente, valore_precedente, cronologia_metrica, baseline)
+        scores[metrica] = score
+        stati[metrica] = stato
+        moving_ranges[metrica] = round(abs(valore_corrente - valore_precedente), 2)
+
+    # Calcolo del P_score aggregato
+    import numpy as np
+    p_score = round(np.mean(list(scores.values())), 3)
+
+    response = {
+        "timestamp": dato_corrente['timestamp'].isoformat(),
+        "metrics": dato_corrente['metrics'],
+        "moving_ranges": moving_ranges,
+        "scores": scores,
+        "stati": stati,
+        "p_score": p_score,
+        "next_offset": offset + 1
+    }
+    return jsonify(response)
 
 @app.route('/availability/config')
 def availability_config():

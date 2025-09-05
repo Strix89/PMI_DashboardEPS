@@ -65,8 +65,8 @@ PMI_Dashboard/
 │   ├── mongodb_config.py      # ✅ Configurazione MongoDB
 │   ├── storage_manager.py     # ✅ Gestione storage
 │   ├── models.py             # ✅ Modelli dati
+│   ├── seed_database.py      # 🎯 Script principale
 │   └── .env                  # ⚠️  File di configurazione (da creare)
-├── seed_database.py          # 🎯 Script principale
 └── requirements.txt          # ✅ Dipendenze
 ```
 
@@ -120,7 +120,7 @@ python -c "from storage_layer.mongodb_config import mongodb_config; print('✅ C
 
 ```bash
 # Genera tutti i dati con configurazione di default
-python seed_database.py
+python storage_layer/seed_database.py
 ```
 
 Questo comando:
@@ -161,7 +161,7 @@ Questo comando:
 
 ```bash
 # Mostra tutte le opzioni disponibili
-python seed_database.py --help
+python storage_layer/seed_database.py --help
 ```
 
 ### Opzioni Principali
@@ -180,16 +180,16 @@ python seed_database.py --help
 
 ```bash
 # Genera 30 giorni di dati con batch grandi (più veloce)
-python seed_database.py --days 30 --batch-size 5000
+python storage_layer/seed_database.py --days 30 --batch-size 5000
 
 # Pulisce e rigenera tutto con seed fisso
-python seed_database.py --skip-cleanup --seed 12345 --log-level DEBUG
+python storage_layer/seed_database.py --skip-cleanup --seed 12345 --log-level DEBUG
 
 # Solo asset senza metriche (veloce per test)
-python seed_database.py --assets-only --days 7
+python storage_layer/seed_database.py --assets-only --days 7
 
 # Riprende un'esecuzione interrotta
-python seed_database.py --resume --log-level DEBUG
+python storage_layer/seed_database.py --resume --log-level DEBUG
 ```
 
 ### 🚀 Ottimizzazione Batch Size
@@ -222,16 +222,16 @@ Generazione Dati (sempre 1/minuto):
 
 ```bash
 # Hardware limitato (es. Raspberry Pi)
-python seed_database.py --batch-size 500
+python storage_layer/seed_database.py --batch-size 500
 
 # Sviluppo locale standard
-python seed_database.py --batch-size 1000  # Default
+python storage_layer/seed_database.py --batch-size 1000  # Default
 
 # Server di produzione
-python seed_database.py --batch-size 5000
+python storage_layer/seed_database.py --batch-size 5000
 
 # Test di performance massima
-python seed_database.py --batch-size 10000 --days 90
+python storage_layer/seed_database.py --batch-size 10000 --days 90
 ```
 
 #### Monitoraggio Performance
@@ -584,7 +584,7 @@ Il sistema genera 8 pattern di performance realistici:
 
 ```bash
 # Setup completo per sviluppo locale
-python seed_database.py --days 7 --batch-size 2000 --log-level DEBUG
+python storage_layer/seed_database.py --days 7 --batch-size 2000 --log-level DEBUG
 ```
 
 **Risultato**: Database pulito con 7 giorni di dati, perfetto per sviluppo e test.
@@ -593,7 +593,7 @@ python seed_database.py --days 7 --batch-size 2000 --log-level DEBUG
 
 ```bash
 # Genera sempre gli stessi dati per demo
-python seed_database.py --seed 42 --days 14 --clean
+python storage_layer/seed_database.py --seed 42 --days 14 --clean
 ```
 
 **Risultato**: Dati identici ad ogni esecuzione, ideale per demo e presentazioni.
@@ -602,7 +602,7 @@ python seed_database.py --seed 42 --days 14 --clean
 
 ```bash
 # Genera grandi volumi per test di performance
-python seed_database.py --days 90 --batch-size 10000 --log-level DEBUG
+python storage_layer/seed_database.py --days 90 --batch-size 10000 --log-level DEBUG
 ```
 
 **Risultato**: ~1.8M metriche per testare performance del sistema.
@@ -611,7 +611,7 @@ python seed_database.py --days 90 --batch-size 10000 --log-level DEBUG
 
 ```bash
 # L'esecuzione si è interrotta, riprendi da dove si era fermata
-python seed_database.py --resume --log-level DEBUG
+python storage_layer/seed_database.py --resume --log-level DEBUG
 ```
 
 **Risultato**: Continua la generazione dal punto di interruzione.
@@ -620,7 +620,7 @@ python seed_database.py --resume --log-level DEBUG
 
 ```bash
 # Solo asset per verificare configurazione (veloce)
-python seed_database.py --assets-only --days 30 --log-level DEBUG
+python storage_layer/seed_database.py --assets-only --days 30 --log-level DEBUG
 ```
 
 **Risultato**: Crea solo gli asset senza metriche né polling history.
@@ -629,7 +629,7 @@ python seed_database.py --assets-only --days 30 --log-level DEBUG
 
 ```bash
 # Genera solo la polling history per test di disponibilità
-python seed_database.py --polling-only --days 7 --batch-size 5000
+python storage_layer/seed_database.py --polling-only --days 7 --batch-size 5000
 ```
 
 **Risultato**: Genera solo i dati di polling per calcoli di availability.
@@ -638,7 +638,7 @@ python seed_database.py --polling-only --days 7 --batch-size 5000
 
 ```bash
 # Genera solo la backup history per test RPO
-python seed_database.py --backup-only --days 14 --batch-size 1000
+python storage_layer/seed_database.py --backup-only --days 14 --batch-size 1000
 ```
 
 **Risultato**: Genera solo i dati di backup per calcoli di RPO e success rate.
@@ -695,10 +695,10 @@ mongosh "mongodb://username:password@localhost:27017/database"
 **Soluzioni:**
 ```bash
 # Riduci la dimensione del batch
-python seed_database.py --batch-size 500
+python storage_layer/seed_database.py --batch-size 500
 
 # Riduci i giorni di dati
-python seed_database.py --days 7
+python storage_layer/seed_database.py --days 7
 
 # Monitora l'uso della memoria
 htop
@@ -717,10 +717,10 @@ htop
 df -h
 
 # Pulisci il database esistente
-python seed_database.py --clean
+python storage_layer/seed_database.py --clean
 
 # Riduci il volume di dati
-python seed_database.py --days 3
+python storage_layer/seed_database.py --days 3
 ```
 
 #### 5. Interruzione del Processo
@@ -733,10 +733,10 @@ python seed_database.py --days 3
 **Soluzioni:**
 ```bash
 # Riprendi dall'ultimo punto
-python seed_database.py --resume
+python storage_layer/seed_database.py --resume
 
 # Se il resume non funziona, ricomincia senza pulizia
-python seed_database.py --skip-cleanup --log-level DEBUG
+python storage_layer/seed_database.py --skip-cleanup --log-level DEBUG
 ```
 
 ### Debug Avanzato
@@ -745,7 +745,7 @@ python seed_database.py --skip-cleanup --log-level DEBUG
 
 ```bash
 # Logging completo per debug
-python seed_database.py --log-level DEBUG --log-file seed_debug.log
+python storage_layer/seed_database.py --log-level DEBUG --log-file seed_debug.log
 ```
 
 #### Verifica Stato Database

@@ -473,7 +473,7 @@ Per problemi o domande:
 1. **Verifica configurazione**: `python storage_layer/mongodb_utils.py --test-connection`
 2. **Consulta log**: File di log in `logs/` directory
 3. **Test performance**: `python storage_layer/mongodb_utils.py --performance-test`
-4. **Documentazione completa**: Vedi `SEED_DATABASE_DOCUMENTATION.md`
+4. **Documentazione completa**: Vedi `../Docs/Storage+Generator/SEED_DATABASE_DOCUMENTATION.md`
 
 ---
 

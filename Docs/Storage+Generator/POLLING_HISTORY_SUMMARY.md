@@ -47,7 +47,7 @@ Con variazioni basate su:
 Aggiunta l'opzione `--polling-only` per generare solo la polling history:
 
 ```bash
-python seed_database.py --polling-only --days 7 --batch-size 1000
+python storage_layer/seed_database.py --polling-only --days 7 --batch-size 1000
 ```
 
 ### 5. Integrazione nel Flusso Principale

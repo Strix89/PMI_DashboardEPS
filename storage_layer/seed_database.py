@@ -17,9 +17,14 @@ import logging
 import random
 import sys
 import time
+import os
 from datetime import datetime, timedelta, UTC
 from typing import Dict, List, Optional, Any, Tuple
 import math
+
+# Add parent directory to path for imports when run as standalone script
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, parent_dir)
 
 from storage_layer.storage_manager import StorageManager
 from storage_layer.models import (
