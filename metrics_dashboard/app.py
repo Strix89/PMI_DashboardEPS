@@ -21,7 +21,7 @@ from storage_layer.models import AssetDocument
 from storage_layer.exceptions import StorageManagerError
 
 # Import Six Sigma utilities
-from utils.sixsigma_blueprint import get_collection, calcola_baseline, monitora_nuovo_dato, BASELINE_DATA_POINTS
+from utils.sixsigma_utils import get_collection, calcola_baseline, monitora_nuovo_dato, BASELINE_DATA_POINTS
 
 # Configurazione logging
 logging.basicConfig(level=logging.INFO)
@@ -32,6 +32,35 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'availability-dashboard-secr
 
 # Cache per le baseline Six Sigma
 baseline_cache = {}
+
+# 🔶 CACHE PER GRAFICI IN PAUSA (Test 4 e 8)
+paused_charts_cache = {}  # {"machine_id_metrica": True/False}
+
+# 🔶 CACHE PER PESI METRICHE SIX SIGMA
+sixsigma_weights_cache = {}  # {"machine_id": {"cpu": 0.4, "ram": 0.35, "io_wait": 0.25}}
+
+def load_sixsigma_weights_from_db():
+    """Carica i pesi salvati da MongoDB all'avvio dell'applicazione"""
+    global sixsigma_weights_cache
+    try:
+        from storage_layer.mongodb_config import mongodb_config
+        db = mongodb_config.get_database()
+        config_collection = db.get_collection('sixsigma_weights_config')
+        
+        configs = config_collection.find({})
+        for config in configs:
+            machine_id = config.get('machine_id')
+            weights = config.get('weights')
+            if machine_id and weights:
+                sixsigma_weights_cache[machine_id] = weights
+        
+        print(f"📊 Caricati pesi Six Sigma per {len(sixsigma_weights_cache)} macchine da MongoDB")
+        
+    except Exception as e:
+        print(f"⚠️ Errore caricamento pesi da MongoDB: {e}")
+
+# Carica i pesi all'avvio
+load_sixsigma_weights_from_db()
 
 # Configurazione database (da file .env)
 DATABASE_CONFIG = {
@@ -295,8 +324,13 @@ def resilience_index():
 
 @app.route('/sixsigma')
 def sixsigma_index():
-    """Pagina Six Sigma SPC Dashboard"""
+    """Pagina Six Sigma di selezione - simile a availability e resilience"""
     return render_template('sixsigma_index.html')
+
+@app.route('/sixsigma/dashboard')
+def sixsigma_dashboard():
+    """Pagina Six Sigma SPC Dashboard vera"""
+    return render_template('sixsigma_dashboard.html')
 
 @app.route('/sixsigma/api/macchine')
 def sixsigma_get_macchine():
@@ -324,9 +358,12 @@ def sixsigma_get_next_data(machine_id, offset):
     
     history_limit = 20
     skip_offset = BASELINE_DATA_POINTS + offset
-    start_skip = max(0, skip_offset - history_limit)
     
-    cursor = collection.find({"machine_id": machine_id}).sort("timestamp", 1).skip(start_skip).limit(history_limit + 1)
+    # **FIX: Non includere mai i dati della baseline nella cronologia della simulazione**
+    simulation_start = BASELINE_DATA_POINTS  # Primo punto della simulazione
+    start_skip = max(simulation_start, skip_offset - history_limit)
+    
+    cursor = collection.find({"machine_id": machine_id}).sort("timestamp", 1).skip(start_skip).limit(skip_offset - start_skip + 1)
     dati = list(cursor)
 
     if len(dati) <= 1:
@@ -335,7 +372,11 @@ def sixsigma_get_next_data(machine_id, offset):
     dato_corrente = dati[-1]
     cronologia_dati = dati[:-1]
     
-    scores, stati, moving_ranges = {}, {}, {}
+    scores, stati, moving_ranges, dettagli_anomalie = {}, {}, {}, {}
+    warning_levels = {}
+    test_falliti = {}
+    punti_critici = {}
+    punti_coinvolti = {}  # 🔶 NUOVO: Per Test 4 e 8
     
     for metrica in ["cpu", "ram", "io_wait"]:
         baseline = baseline_cache.get(f"{machine_id}_{metrica}")
@@ -346,14 +387,55 @@ def sixsigma_get_next_data(machine_id, offset):
         cronologia_metrica = [d['metrics'][f'{metrica}_percent'] for d in cronologia_dati]
         valore_precedente = cronologia_metrica[-1] if cronologia_metrica else 0
         
-        stato, score = monitora_nuovo_dato(valore_corrente, valore_precedente, cronologia_metrica, baseline)
-        scores[metrica] = score
-        stati[metrica] = stato
+        # **DEBUG: Log cronologia per verificare il fix**
+        if offset <= 10:  # Solo per i primi punti
+            print(f"DEBUG [offset={offset}] {metrica}: cronologia_len={len(cronologia_metrica)}, simulation_start={BASELINE_DATA_POINTS}, current_pos={skip_offset}")
+        
+        # Nuova funzione restituisce un dizionario
+        risultato = monitora_nuovo_dato(valore_corrente, valore_precedente, cronologia_metrica, baseline)
+        
+        # 🔶 GESTIONE PENALTY SCORE DURANTE RICALCOLO BASELINE
+        paused_key = f"{machine_id}_{metrica}"
+        if paused_charts_cache.get(paused_key, False):
+            # Se il grafico è in pausa per ricalcolo, applica SOLO penalty score
+            # ma mantieni tutti gli altri dati normali per il frontend
+            scores[metrica] = 0.3  # Penalty score fisso durante ricalcolo
+            # NON modificare stati, test_falliti, ecc. - il frontend gestisce tutto
+        else:
+            # Comportamento normale
+            scores[metrica] = risultato["score"]
+        
+        # Questi rimangono sempre uguali, pausa o no
+        stati[metrica] = risultato["stato"]
         moving_ranges[metrica] = round(abs(valore_corrente - valore_precedente), 2)
+        dettagli_anomalie[metrica] = risultato["dettagli_anomalia"]
+        warning_levels[metrica] = risultato["warning_level"]
+        test_falliti[metrica] = risultato["test_fallito"]
+        punti_critici[metrica] = risultato["punto_critico"]
+        punti_coinvolti[metrica] = risultato["punti_coinvolti"]  # 🔶 NUOVO
 
-    # Calcolo del P_score aggregato
-    import numpy as np
-    p_score = round(np.mean(list(scores.values())), 3)
+    # 🔶 CALCOLO DEL P_SCORE CON PESI CONFIGURATI
+    machine_weights = sixsigma_weights_cache.get(machine_id)
+    
+    if machine_weights:
+        # Calcolo pesato basato sulla configurazione
+        weighted_sum = 0
+        total_weight = 0
+        
+        for metrica in ["cpu", "ram", "io_wait"]:
+            weight = machine_weights.get(metrica, 0)
+            if weight > 0:  # Solo se il peso è configurato
+                weighted_sum += scores[metrica] * weight
+                total_weight += weight
+        
+        p_score = round(weighted_sum / total_weight if total_weight > 0 else 0, 3)
+    else:
+        # Fallback: media semplice se non configurato
+        import numpy as np
+        p_score = round(np.mean(list(scores.values())), 3)
+    
+    # Per ora non gestiamo il ricalcolo baseline (solo Test 1)
+    overall_recalculate = False
 
     response = {
         "timestamp": dato_corrente['timestamp'].isoformat(),
@@ -361,10 +443,77 @@ def sixsigma_get_next_data(machine_id, offset):
         "moving_ranges": moving_ranges,
         "scores": scores,
         "stati": stati,
+        "dettagli_anomalie": dettagli_anomalie,
+        "warning_levels": warning_levels,
+        "test_falliti": test_falliti,
+        "punti_critici": punti_critici,
+        "punti_coinvolti": punti_coinvolti,  # 🔶 NUOVO: Per Test 4 e 8
         "p_score": p_score,
         "next_offset": offset + 1
     }
     return jsonify(response)
+
+@app.route('/sixsigma/api/pause_chart/<machine_id>/<metrica>')
+def sixsigma_pause_chart(machine_id, metrica):
+    """API per mettere in pausa un grafico per ricalcolo baseline"""
+    paused_key = f"{machine_id}_{metrica}"
+    paused_charts_cache[paused_key] = True
+    return jsonify({"success": True, "message": f"Grafico {metrica} messo in pausa"})
+
+@app.route('/sixsigma/api/resume_chart/<machine_id>/<metrica>')
+def sixsigma_resume_chart(machine_id, metrica):
+    """API per riattivare un grafico dopo ricalcolo baseline"""
+    paused_key = f"{machine_id}_{metrica}"
+    paused_charts_cache[paused_key] = False
+    return jsonify({"success": True, "message": f"Grafico {metrica} riattivato"})
+
+@app.route('/sixsigma/api/recalculate_baseline/<machine_id>/<metrica>')
+def sixsigma_recalculate_baseline(machine_id, metrica):
+    """API per ricalcolare la baseline di una specifica metrica"""
+    collection = get_collection()
+    
+    # Prendi gli ultimi 200 punti dati per il ricalcolo
+    recalc_points = 200
+    cursor = collection.find({"machine_id": machine_id}).sort("timestamp", -1).limit(recalc_points)
+    dati = list(cursor)
+    dati.reverse()  # Riordina cronologicamente
+    
+    if len(dati) < 50:
+        return jsonify({"error": "Dati insufficienti per ricalcolare la baseline"}), 400
+    
+    # Simula il calcolo baseline sui nuovi dati
+    valori = [d['metrics'][f'{metrica}_percent'] for d in dati]
+    
+    # Calcolo dei parametri per la carta di controllo XmR
+    import numpy as np
+    cl_x = np.mean(valori)
+    moving_ranges = [abs(valori[i] - valori[i-1]) for i in range(1, len(valori))]
+    cl_mr = np.mean(moving_ranges) if moving_ranges else 0
+    
+    ucl_x = cl_x + 2.66 * cl_mr
+    lcl_x = max(0, cl_x - 2.66 * cl_mr)
+    ucl_mr = 3.268 * cl_mr
+
+    new_baseline = {
+        "cl_x": round(cl_x, 2),
+        "ucl_x": round(ucl_x, 2),
+        "lcl_x": round(lcl_x, 2),
+        "cl_mr": round(cl_mr, 2),
+        "ucl_mr": round(ucl_mr, 2)
+    }
+    
+    # Aggiorna la cache
+    cache_key = f"{machine_id}_{metrica}"
+    baseline_cache[cache_key] = new_baseline
+    
+    return jsonify({
+        "success": True,
+        "machine_id": machine_id,
+        "metrica": metrica,
+        "new_baseline": new_baseline,
+        "data_points_used": len(dati),
+        "message": f"Baseline per {metrica} ricalcolata con {len(dati)} punti dati"
+    })
 
 @app.route('/availability/config')
 def availability_config():
@@ -375,6 +524,164 @@ def availability_config():
 def resilience_config():
     """Pagina di configurazione per generare nuovo file JSON resilience"""
     return render_template('resilience_config.html')
+
+@app.route('/sixsigma/config')
+def sixsigma_config():
+    """Pagina di configurazione pesi Six Sigma per ogni macchina"""
+    print("🔧 DEBUG: Caricamento pagina sixsigma/config")
+    
+    # Recupera la lista delle macchine disponibili dal database usando la stessa logica dell'API macchine
+    try:
+        collection = get_collection()
+        machines = collection.distinct("machine_id")
+        print(f"🔧 DEBUG: Macchine trovate nel DB Six Sigma: {machines}")
+        
+        if not machines:
+            # Fallback se non ci sono macchine nel DB
+            machines = ['machine_001', 'machine_002', 'machine_003']
+            print("🔧 DEBUG: Usato fallback per macchine")
+            
+    except Exception as e:
+        print(f"🔧 DEBUG: Errore nel caricamento macchine: {e}")
+        # Fallback con macchine di esempio
+        machines = ['machine_001', 'machine_002', 'machine_003']
+        print("🔧 DEBUG: Usato fallback per errore")
+    
+    # Configurazione di default per i pesi delle metriche
+    default_weights = {
+        'cpu': 0.4,     # CPU peso maggiore (criticalità alta)
+        'ram': 0.35,    # RAM peso medio-alto
+        'io_wait': 0.25 # I/O peso minore
+    }
+    
+    print(f"🔧 DEBUG: Rendering template con machines={machines}, default_weights={default_weights}")
+    
+    return render_template('sixsigma_config.html', 
+                         machines=machines, 
+                         default_weights=default_weights)
+
+@app.route('/sixsigma/api/save_config', methods=['POST'])
+def sixsigma_save_config():
+    """API per salvare la configurazione dei pesi Six Sigma"""
+    try:
+        config_data = request.json
+        
+        # Validazione: tutti i pesi di ogni macchina devono sommare a 1.0
+        for machine, weights in config_data.items():
+            total = weights.get('cpu', 0) + weights.get('ram', 0) + weights.get('io_wait', 0)
+            if abs(total - 1.0) > 0.01:  # Tolleranza per errori di arrotondamento
+                return jsonify({
+                    "success": False, 
+                    "message": f"I pesi per {machine} non sommano a 100% (attuale: {total*100:.1f}%)"
+                }), 400
+        
+        # Salva nel database MongoDB
+        try:
+            from storage_layer.mongodb_config import mongodb_config
+            db = mongodb_config.get_database()
+            config_collection = db.get_collection('sixsigma_weights_config')
+            
+            # Salva ogni configurazione di macchina come documento separato
+            for machine_id, weights in config_data.items():
+                config_doc = {
+                    "machine_id": machine_id,
+                    "weights": weights,
+                    "updated_at": datetime.now(),
+                    "created_by": "dashboard_config"
+                }
+                
+                # Upsert: aggiorna se esiste, crea se non esiste
+                config_collection.replace_one(
+                    {"machine_id": machine_id},
+                    config_doc,
+                    upsert=True
+                )
+            
+            print(f"💾 Configurazione pesi salvata in MongoDB per {len(config_data)} macchine")
+            
+        except Exception as db_error:
+            print(f"⚠️ Errore salvataggio MongoDB: {db_error}")
+            # Continua comunque con il salvataggio in cache
+        
+        # Salva anche nella cache globale per accesso rapido
+        global sixsigma_weights_cache
+        sixsigma_weights_cache = config_data
+        
+        return jsonify({
+            "success": True,
+            "message": "Configurazione salvata con successo",
+            "config": config_data
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"Errore nel salvataggio: {str(e)}"
+        }), 500
+
+@app.route('/sixsigma/api/weights/<machine_id>')
+def sixsigma_get_weights(machine_id):
+    """API per ottenere i pesi configurati per una macchina specifica"""
+    try:
+        global sixsigma_weights_cache
+        
+        # Prima prova a caricare da MongoDB
+        try:
+            from storage_layer.mongodb_config import mongodb_config
+            db = mongodb_config.get_database()
+            config_collection = db.get_collection('sixsigma_weights_config')
+            
+            config_doc = config_collection.find_one({"machine_id": machine_id})
+            if config_doc and 'weights' in config_doc:
+                weights = config_doc['weights']
+                # Aggiorna anche la cache
+                sixsigma_weights_cache[machine_id] = weights
+                
+                return jsonify({
+                    "success": True,
+                    "machine_id": machine_id,
+                    "weights": {
+                        "cpu": weights.get('cpu', 0.4),
+                        "ram": weights.get('ram', 0.35),
+                        "io_wait": weights.get('io_wait', 0.25)
+                    },
+                    "source": "database"
+                })
+                
+        except Exception as db_error:
+            print(f"⚠️ Errore caricamento MongoDB: {db_error}")
+        
+        # Fallback: se non trovato in MongoDB, controlla la cache
+        if machine_id in sixsigma_weights_cache:
+            weights = sixsigma_weights_cache[machine_id]
+            return jsonify({
+                "success": True,
+                "machine_id": machine_id,
+                "weights": {
+                    "cpu": weights.get('cpu', 0.4),
+                    "ram": weights.get('ram', 0.35),
+                    "io_wait": weights.get('io_wait', 0.25)
+                },
+                "source": "cache"
+            })
+        else:
+            # Restituiamo i pesi di default
+            return jsonify({
+                "success": True,
+                "machine_id": machine_id,
+                "weights": {
+                    "cpu": 0.4,
+                    "ram": 0.35,
+                    "io_wait": 0.25
+                },
+                "source": "default"
+            })
+            
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"Errore nel recupero pesi: {str(e)}"
+        }), 500
 
 @app.route('/availability/load_json/<filename>')
 def availability_load_json(filename):

@@ -1,24 +1,25 @@
-# Metrics Dashboard - Sistema di Monitoraggio Availability e Resilience
+# Metrics Dashboard - Sistema di Monitoraggio Avanzato PMI Infrastructure
 
-**Metrics Dashboard** è una web application Flask avanzata che fornisce analisi cumulativa e monitoraggio real-time delle metriche di **availability** e **resilience** per servizi infrastrutturali e sistemi di backup. Il sistema connette a MongoDB per recuperare metriche operative e genera dashboard interattive per il monitoraggio della salute dei servizi e della resilienza dei backup.
+**Metrics Dashboard** è una web application Flask completa che fornisce tre moduli di monitoraggio avanzato per l'infrastruttura PMI: **Availability Analytics**, **Resilience Analytics** e **Six Sigma Statistical Process Control (SPC)**. Il sistema si connette a MongoDB per recuperare metriche operative e genera dashboard interattive per il monitoraggio in tempo reale della salute dei servizi, resilienza dei backup e controllo statistico dei processi.
 
 ## 🏗️ Architettura del Sistema
 
 ### **Componenti Principali**
 
 1. **Flask Web Application** (`app.py`)
-   - Server web principale con routing e API endpoints per entrambi i moduli
+   - Server web principale con routing e API endpoints per tutti e tre i moduli
    - Gestione sessioni utente e configurazioni personalizzate
-   - Job manager per analisi asincrone in background per availability e resilience
+   - Job manager per analisi asincrone in background
+   - Sistema di cache per performance ottimali
 
-2. **Availability Analytics**
+2. **Availability Analytics Module**
    - **Cumulative Availability Analyzer** (`utils/cumulative_availability_analyzer.py`)
      - Motore di calcolo delle metriche cumulative di disponibilità servizi
      - Algoritmo di scoring basato su error budget configurabili
    - **Availability Summary** (`utils/availability_summary.py`)
      - Modulo di aggregazione e riepilogo delle metriche di availability
 
-3. **Resilience Analytics** (NUOVO)
+3. **Resilience Analytics Module**
    - **Cumulative Resilience Analyzer** (`utils/cumulative_resilience_analyzer.py`)
      - Motore di analisi della resilienza dei sistemi di backup
      - Calcolo di RPO Compliance e Success Rate per backup jobs e asset
@@ -26,9 +27,21 @@
    - **Backup Summary** (`utils/backup_summary.py`)
      - Modulo di aggregazione per metriche di backup e resilienza
 
-4. **Storage Layer Integration**
+4. **Six Sigma SPC Module** (NUOVO)
+   - **Six Sigma Utilities** (`utils/sixsigma_utils.py`)
+     - Motore Statistical Process Control con implementazione completa dei test SPC
+     - Carte di controllo XmR (Individual & Moving Range)
+     - 8 Test statistici implementati: Test 1, 2, 3, 4, 8, mR, Saturazione
+     - Sistema di baseline dinamico con ricalcolo automatico
+   - **Six Sigma Frontend** (`static/sixsigma_script.js`)
+     - Dashboard interattiva real-time con Chart.js
+     - Simulazione temporale con controlli play/pause
+     - Visualizzazione P-Score aggregato weighted
+
+5. **Storage Layer Integration**
    - Integrazione con `storage_layer.storage_manager` per connettività MongoDB
-   - Accesso a collection "assets", "metrics" e dati di backup del database PMI
+   - Accesso a multiple collections: "assets", "metrics", "sixsigma_monitoring"
+   - Sistema di configurazione persistente con MongoDB
 
 ## 🔬 Algoritmi di Scoring
 
@@ -47,7 +60,792 @@ S(P_f, E_b) =
 - `P_f` = Numero di fallimenti cumulativi per servizio
 - `E_b` = Error Budget configurabile per tipo di servizio
 
-### **Formula Cumulativa di Resilience** (NUOVO)
+### **Formula Cumulativa di Resilience**
+
+Il sistema calcola la resilience dei backup utilizzando un approccio multi-metrica:
+
+```
+Resilience_Score = (w_RPO × RPO_Compliance) + (w_Success × Success_Rate)
+```
+
+**Dove:**
+- `RPO_Compliance = max(0, 1 - (actual_RPO / target_RPO))`
+- `Success_Rate = backup_riusciti_cumulativi / backup_totali_cumulativi`
+- `w_RPO` = Peso per RPO Compliance (default: 60%)
+- `w_Success` = Peso per Success Rate (default: 40%)
+
+### **Formula Six Sigma P-Score** (NUOVO)
+
+Il sistema calcola un Performance Score aggregato utilizzando pesi configurabili per macchina:
+
+```
+P_Score = (w_CPU × Score_CPU) + (w_RAM × Score_RAM) + (w_IO × Score_IO)
+```
+
+**Dove:**
+- `Score_X` = Punteggio SPC per metrica (1.0 = In Controllo, 0.0 = Critico)
+- `w_CPU` = Peso CPU (default: 40%)
+- `w_RAM` = Peso RAM (default: 35%) 
+- `w_IO` = Peso I/O Wait (default: 25%)
+- `w_CPU + w_RAM + w_IO = 100%` (auto-bilanciamento)
+
+**Test SPC Implementati:**
+
+| Test | Nome | Score | Colore | Descrizione |
+|------|------|-------|--------|-------------|
+| **Test 1** | Violazione Limite X | 0.1 | 🔴 Rosso | Punto fuori UCL/LCL |
+| **Test mR** | Alta Variabilità | 0.2 | 🔴 Rosso | Moving Range > UCL_mR |
+| **Saturazione** | Risorsa Saturata | 0.0 | 🔴 Rosso | Valore ≥ 100% |
+| **Test 4** | Run Test | 0.4 | 🟠 Arancione | 8 punti stesso lato media |
+| **Test 8** | Trend Lineare | 0.4 | 🟠 Arancione | 6 punti crescenti/decrescenti |
+| **Test 2** | Zona A | 0.6 | 🟡 Giallo | 2 di 3 punti oltre 2σ |
+| **Test 3** | Zona B | 0.7 | 🟡 Giallo | 4 di 5 punti oltre 1σ |
+| **In Controllo** | Processo Stabile | 1.0 | 🟢 Verde | Tutti i test passati |
+
+**Target RPO Default per Tipo Asset:**
+- Virtual Machines: 24 ore
+- Container: 12 ore
+- Server Fisici: 48 ore
+- Nodi Proxmox: 24 ore
+- Backup Jobs Acronis: 24 ore
+
+### **Classificazione Status**
+
+**Availability Status:**
+| Score Range | Status | Descrizione |
+|-------------|---------|-------------|
+| < 50% | **CRITICAL** | Servizio in stato critico |
+| 50% - 80% | **ATTENZIONE** | Servizio degradato |
+| > 80% | **GOOD** | Servizio operativo |
+
+**Resilience Status:**
+| Score Range | Status | Descrizione |
+|-------------|---------|-------------|
+| > 90% | **EXCELLENT** | Resilienza eccellente |
+| 75% - 90% | **GOOD** | Resilienza buona |
+| 60% - 75% | **ACCEPTABLE** | Resilienza accettabile |
+| 40% - 60% | **CRITICAL** | Resilienza critica |
+| < 40% | **SEVERE** | Resilienza severa |
+
+**Six Sigma P-Score Status:**
+| Score Range | Status | Descrizione |
+|-------------|---------|-------------|
+| > 0.8 | **EXCELLENT** | Performance eccellenti |
+| 0.5 - 0.8 | **GOOD** | Performance buone |
+| < 0.5 | **CRITICAL** | Performance critiche |
+
+## 🔧 API Reference
+
+### **Endpoints Modulo Availability**
+
+#### **GET /** (Homepage)
+Pagina di selezione tra i moduli analytics
+
+#### **GET /availability/**
+Dashboard principale di availability analytics
+- **Template**: `availability_index.html`
+- **Feature**: Selezione servizi e configurazione pesi
+
+#### **GET /availability/config**
+Interfaccia di configurazione parametri availability
+- **Template**: `availability_config.html`
+- **Feature**: Error budget e pesi di criticità
+
+#### **POST /availability/start_analysis**
+Avvio analisi cumulativa availability
+- **Payload**: JSON con configurazione servizi
+- **Response**: Job ID per tracking progress
+- **Background**: Subprocess per analisi pesanti
+
+#### **GET /availability/analysis_progress/\<job_id>**
+Monitoraggio progress analisi asincrona
+- **Response**: JSON con status, percentage, logs
+
+#### **GET /availability/dashboard/\<analysis_file>**
+Dashboard con risultati analisi
+- **Template**: `availability_dashboard.html`
+- **Chart**: Tachimetri semicircolari per servizi
+
+### **Endpoints Modulo Resilience**
+
+#### **GET /resilience/**
+Dashboard principale di resilience analytics
+- **Template**: `resilience_index.html`
+- **Feature**: Selezione asset e configurazione RPO
+
+#### **GET /resilience/config**
+Interfaccia di configurazione parametri resilience
+- **Template**: `resilience_config.html`
+- **Feature**: Target RPO e pesi metriche
+
+#### **POST /resilience/start_analysis**
+Avvio analisi cumulativa resilience
+- **Payload**: JSON con configurazione asset/jobs
+- **Response**: Job ID per tracking progress
+- **Background**: Subprocess per simulazione settimanale
+
+#### **GET /resilience/analysis_progress/\<job_id>**
+Monitoraggio progress analisi asincrona
+- **Response**: JSON con status, percentage, logs
+
+#### **GET /resilience/dashboard/\<analysis_file>**
+Dashboard con risultati analisi
+- **Template**: `resilience_dashboard.html`
+- **Chart**: Grafici a ciambetta e indicatori circolari
+
+### **Endpoints Modulo Six Sigma SPC**
+
+#### **GET /sixsigma/**
+Pagina di selezione macchina per SPC monitoring
+- **Template**: `sixsigma_index.html`
+- **Feature**: Theme toggle e selezione asset
+
+#### **GET /sixsigma/config**
+Interfaccia di configurazione pesi metriche
+- **Template**: `sixsigma_config.html`
+- **Feature**: Auto-balancing sliders per CPU/RAM/I/O
+
+#### **POST /sixsigma/save_weights**
+Salvataggio configurazione pesi
+- **Payload**: JSON con weights e machine name
+- **Response**: Success/error status
+- **Storage**: MongoDB collection `sixsigma_weights_config`
+
+#### **GET /sixsigma/get_weights/\<machine_name>**
+Recupero pesi configurati per macchina
+- **Response**: JSON con CPU, RAM, I/O weights
+- **Fallback**: Valori default (33.33% each) se non configurato
+
+#### **GET /sixsigma/dashboard/\<machine_name>**
+Dashboard SPC real-time
+- **Template**: `sixsigma_dashboard.html`
+- **Feature**: Chart XmR interattivi con statistical tests
+
+#### **GET /sixsigma/get_metrics/\<machine_name>**
+Recupero metriche storiche per analisi SPC
+- **Response**: JSON con timestamp, CPU, RAM, I/O data
+- **Filter**: Ultimi 3 giorni per baseline calculation
+
+#### **POST /sixsigma/monitor_data**
+Elaborazione nuovo punto dati SPC
+- **Payload**: JSON con machine_name e metric value
+- **Response**: Detailed SPC analysis con test results
+- **Process**: 8 test statistici + P-Score calculation
+
+#### **GET /sixsigma/test/demo**
+Endpoint di test per validazione implementazione
+- **Response**: JSON con test results e baseline stats
+- **Usage**: Development e debugging
+
+### **Database Collections**
+
+#### **pmi_infrastructure.assets**
+```json
+{
+  "_id": ObjectId,
+  "hostname": "string",
+  "tipo": "vm|container|nodo_proxmox|server_fisico",
+  "ip": "string",
+  "stato_operativo": "attivo|manutenzione|disattivato",
+  "criticita": "alta|media|bassa"
+}
+```
+
+#### **pmi_infrastructure.metrics**
+```json
+{
+  "_id": ObjectId,
+  "asset_id": ObjectId,
+  "timestamp": ISODate,
+  "cpu_percent": Number,
+  "ram_percent": Number,
+  "iowait_percent": Number,
+  "services": [
+    {
+      "name": "string",
+      "status": "active|inactive|failed",
+      "uptime": Number
+    }
+  ]
+}
+```
+
+#### **sixsigma_monitoring.sixsigma_weights_config**
+```json
+{
+  "_id": ObjectId,
+  "machine_name": "string",
+  "weights": {
+    "cpu": Number,    // 0-100
+    "ram": Number,    // 0-100
+    "io": Number      // 0-100
+  },
+  "created_at": ISODate,
+  "updated_at": ISODate
+}
+```
+
+#### **sixsigma_monitoring.metrics_advanced_test**
+```json
+{
+  "_id": ObjectId,
+  "machine_name": "string",
+  "timestamp": ISODate,
+  "metric_type": "cpu|ram|io",
+  "value": Number,
+  "baseline_stats": {
+    "cl": Number,
+    "ucl": Number,
+    "lcl": Number,
+    "ucl_mr": Number,
+    "sigma": Number
+  },
+  "test_results": {
+    "test1": Boolean,
+    "test2": Boolean,
+    "test3": Boolean,
+    "test4": Boolean,
+    "test8": Boolean,
+    "testmr": Boolean,
+    "saturazione": Boolean
+  },
+  "p_score": Number
+}
+```
+
+## ⚙️ Setup e Installazione
+
+### **1. Requisiti di Sistema**
+```bash
+# Sistema Operativo
+Windows 10/11 or Linux/macOS
+
+# Python Version
+Python 3.8+
+
+# MongoDB
+MongoDB 4.4+ with replica set (for change streams)
+
+# Storage Requirements
+Minimum 2GB for application + logs
+```
+
+### **2. Dipendenze Python**
+```bash
+# Core Dependencies
+pip install flask==2.3.3
+pip install pymongo==4.5.0
+pip install python-dotenv==1.0.0
+pip install numpy==1.24.3
+pip install matplotlib==3.7.2
+
+# Additional Dependencies  
+pip install requests==2.31.0
+pip install jinja2==3.1.2
+pip install werkzeug==2.3.7
+
+# Or install all at once
+pip install -r requirements.txt
+```
+
+### **3. Configurazione MongoDB**
+
+#### **Setup Database pmi_infrastructure**
+```javascript
+// MongoDB Shell Commands
+use pmi_infrastructure
+
+// Crea collections con indexes
+db.assets.createIndex({"hostname": 1})
+db.assets.createIndex({"tipo": 1})
+db.assets.createIndex({"stato_operativo": 1})
+
+db.metrics.createIndex({"asset_id": 1, "timestamp": -1})
+db.metrics.createIndex({"timestamp": -1})
+```
+
+#### **Setup Database sixsigma_monitoring**
+```javascript
+// MongoDB Shell Commands  
+use sixsigma_monitoring
+
+// Crea collections con indexes
+db.sixsigma_weights_config.createIndex({"machine_name": 1}, {"unique": true})
+db.metrics_advanced_test.createIndex({"machine_name": 1, "timestamp": -1})
+db.metrics_advanced_test.createIndex({"timestamp": -1})
+```
+
+### **4. Configurazione Environment**
+
+#### **File .env di Produzione**
+```bash
+# MongoDB Configuration
+MONGODB_URI=mongodb://localhost:27017/
+MONGODB_DB_INFRASTRUCTURE=pmi_infrastructure
+MONGODB_DB_SIXSIGMA=sixsigma_monitoring
+
+# Flask Configuration
+FLASK_ENV=production
+FLASK_DEBUG=False
+SECRET_KEY=your-secret-key-here
+
+# Application Settings
+HOST=0.0.0.0
+PORT=5000
+WORKERS=4
+
+# Logging
+LOG_LEVEL=INFO
+LOG_FILE=logs/application.log
+```
+
+### **5. Struttura Directory di Installazione**
+```
+PMI_DashboardEPS/
+├── metrics_dashboard/           # Applicazione principale
+│   ├── app.py                  # Flask server
+│   ├── requirements.txt        # Dipendenze
+│   ├── .env                   # Configurazione produzione
+│   └── ...                    # Altri file applicazione
+├── storage_layer/              # Layer di accesso dati
+│   ├── storage_manager.py     # MongoDB connection manager
+│   ├── models.py              # Data models
+│   └── ...                    # Altri file storage
+├── logs/                      # Directory log applicazione
+└── venv/                      # Virtual environment Python
+```
+
+### **6. Avvio dell'Applicazione**
+
+#### **Modalità Development**
+```bash
+# Attiva virtual environment
+source venv/bin/activate  # Linux/macOS
+venv\Scripts\activate     # Windows
+
+# Installa dipendenze
+pip install -r requirements.txt
+
+# Avvia in modalità development
+python app.py
+# O usando il run script
+python run.py
+```
+
+#### **Modalità Production**
+```bash
+# Usando Gunicorn (Linux/macOS)
+gunicorn --bind 0.0.0.0:5000 --workers 4 app:app
+
+# Usando Waitress (Windows)
+pip install waitress
+waitress-serve --host=0.0.0.0 --port=5000 app:app
+
+# Come servizio systemd (Linux)
+sudo systemctl start metrics-dashboard
+sudo systemctl enable metrics-dashboard
+```
+
+## 🚀 Workflow Operativo
+
+### **1. Utilizzo Modulo Availability**
+
+#### **Step 1: Configurazione Iniziale**
+1. Accedi a `http://localhost:5000/availability/config`
+2. Seleziona i servizi da monitorare dalla lista automatica
+3. Configura Error Budget personalizzati per ogni servizio
+4. Imposta pesi di criticità (distribuzione 100%)
+5. Salva configurazione
+
+#### **Step 2: Avvio Analisi**
+1. Vai su `http://localhost:5000/availability/`
+2. Clicca "Avvia Analisi Cumulativa"
+3. Monitora progress tramite progress bar
+4. Attendi completamento (dipende da volume dati)
+
+#### **Step 3: Visualizzazione Dashboard**
+1. Al completamento, redirect automatico a dashboard
+2. Analizza tachimetri semicircolari per ogni servizio
+3. Verifica Health Score aggregato ponderato
+4. Usa controlli timeline per navigazione temporale
+
+### **2. Utilizzo Modulo Resilience**
+
+#### **Step 1: Configurazione RPO e Pesi**
+1. Accedi a `http://localhost:5000/resilience/config`
+2. Seleziona asset e backup jobs da monitorare
+3. Configura target RPO personalizzati per tipo
+4. Imposta bilanciamento tra RPO Compliance e Success Rate
+5. Salva configurazione
+
+#### **Step 2: Avvio Analisi Settimanale**
+1. Vai su `http://localhost:5000/resilience/`
+2. Clicca "Avvia Analisi Resilience"
+3. Il sistema simula 168 ore (1 settimana)
+4. Monitora progress dell'analisi
+
+#### **Step 3: Dashboard Resilience**
+1. Visualizza grafico a ciambella aggregato
+2. Analizza indicatori circolari per singoli asset
+3. Verifica distribuzione livelli resilience
+4. Naviga timeline per andamento storico
+
+### **3. Utilizzo Modulo Six Sigma SPC**
+
+#### **Step 1: Configurazione Pesi Macchina**
+1. Accedi a `http://localhost:5000/sixsigma/`
+2. Seleziona macchina/asset da monitorare
+3. Vai su "Configura Pesi" per la macchina selezionata
+4. Usa auto-balancing sliders per CPU/RAM/I/O Wait
+5. Salva configurazione (persiste in MongoDB)
+
+#### **Step 2: Monitoring SPC Real-time**
+1. Accedi a dashboard `http://localhost:5000/sixsigma/dashboard/<machine>`
+2. I grafici XmR si popolano automaticamente
+3. Monitora P-Score aggregato e test statistici
+4. Usa controlli play/pause per simulazione temporale
+
+#### **Step 3: Analisi Anomalie**
+1. Osserva colori dei punti (Verde/Giallo/Arancione/Rosso)
+2. Leggi log dettagliati per ogni metrica
+3. Verifica contatori test statistici
+4. Analizza pattern e trend nei grafici XmR
+
+## 🔍 Algoritmi e Logica di Business
+
+### **Statistical Process Control (SPC) Engine**
+
+#### **Baseline Calculation Algorithm**
+```python
+def calcola_baseline(dati_storici):
+    """
+    Calcola parametri baseline da ultimi 3 giorni di dati
+    Implementa teoria XmR Control Charts
+    """
+    # Individual Chart (X)
+    media = np.mean(dati_storici)
+    
+    # Moving Range Chart (mR)  
+    moving_ranges = [abs(dati_storici[i] - dati_storici[i-1]) 
+                    for i in range(1, len(dati_storici))]
+    mr_mean = np.mean(moving_ranges)
+    
+    # Calcola limiti di controllo
+    ucl = media + (2.66 * mr_mean)  # Upper Control Limit
+    lcl = media - (2.66 * mr_mean)  # Lower Control Limit
+    if lcl < 0: lcl = 0             # Non negativi per %
+    
+    ucl_mr = 3.27 * mr_mean         # UCL per Moving Range
+    sigma = mr_mean / 1.128         # Stima sigma processo
+    
+    return media, ucl, lcl, ucl_mr, sigma
+```
+
+#### **Test Statistici Implementation**
+```python
+def esegui_test_spc(valore, dati_recenti, baseline):
+    """
+    Esegue tutti gli 8 test SPC su nuovo punto dati
+    """
+    test_results = {}
+    
+    # Test 1: Violazione Limite X
+    test_results['test1'] = (valore > baseline['ucl'] or 
+                           valore < baseline['lcl'])
+    
+    # Test 2: Zona A (2 di 3 punti oltre 2σ)
+    if len(dati_recenti) >= 3:
+        zone_a_violations = sum(1 for v in dati_recenti[-3:] 
+                               if abs(v - baseline['cl']) > 2*baseline['sigma'])
+        test_results['test2'] = zone_a_violations >= 2
+    
+    # Test 3: Zona B (4 di 5 punti oltre 1σ)
+    if len(dati_recenti) >= 5:
+        zone_b_violations = sum(1 for v in dati_recenti[-5:] 
+                               if abs(v - baseline['cl']) > baseline['sigma'])
+        test_results['test3'] = zone_b_violations >= 4
+    
+    # Test 4: Run Test (8 punti stesso lato)
+    if len(dati_recenti) >= 8:
+        above_mean = all(v > baseline['cl'] for v in dati_recenti[-8:])
+        below_mean = all(v < baseline['cl'] for v in dati_recenti[-8:])
+        test_results['test4'] = above_mean or below_mean
+    
+    # Test 8: Trend (6 punti crescenti/decrescenti)
+    if len(dati_recenti) >= 6:
+        increasing = all(dati_recenti[i] < dati_recenti[i+1] 
+                        for i in range(-6, -1))
+        decreasing = all(dati_recenti[i] > dati_recenti[i+1] 
+                        for i in range(-6, -1))
+        test_results['test8'] = increasing or decreasing
+    
+    return test_results
+```
+
+### **Weighted P-Score Algorithm**
+```python
+def calcola_p_score_pesato(scores_metriche, pesi):
+    """
+    Calcola P-Score aggregato usando pesi configurabili
+    """
+    p_score = (pesi['cpu']/100.0 * scores_metriche['cpu'] +
+               pesi['ram']/100.0 * scores_metriche['ram'] + 
+               pesi['io']/100.0 * scores_metriche['io'])
+    
+    return round(p_score, 3)
+
+def converti_test_a_score(test_results):
+    """
+    Converte risultati test SPC in score numerico
+    """
+    if test_results['saturazione']: return 0.0
+    if test_results['test1']: return 0.1
+    if test_results['testmr']: return 0.2
+    if test_results['test4'] or test_results['test8']: return 0.4
+    if test_results['test2']: return 0.6
+    if test_results['test3']: return 0.7
+    return 1.0  # In controllo
+```
+
+### **Resilience Score Algorithm**
+```python
+def calcola_resilience_score(rpo_compliance, success_rate, pesi):
+    """
+    Combina RPO Compliance e Success Rate con pesi configurabili
+    """
+    # Normalizza RPO Compliance
+    rpo_norm = max(0, min(1, rpo_compliance))
+    
+    # Calcola score finale
+    resilience_score = (pesi['rpo']/100.0 * rpo_norm + 
+                       pesi['success']/100.0 * success_rate)
+    
+    return round(resilience_score * 100, 2)  # Percentuale
+```
+
+## 🛠️ Troubleshooting e Best Practices
+
+### **Common Issues e Soluzioni**
+
+#### **1. Problemi di Connessione MongoDB**
+```bash
+# Verifica connessione MongoDB
+mongo --eval "db.runCommand('ping')"
+
+# Controlla status replica set (necessario per change streams)
+mongo --eval "rs.status()"
+
+# Se replica set non configurato
+mongo --eval "rs.initiate()"
+```
+
+#### **2. Errori di Dipendenze Python**
+```bash
+# Reinstalla dipendenze pulite
+pip uninstall -r requirements.txt -y
+pip install -r requirements.txt
+
+# Problemi con numpy/matplotlib
+pip install --upgrade numpy matplotlib
+
+# Per Windows con problemi compilazione
+pip install --only-binary=all numpy matplotlib
+```
+
+#### **3. Problemi Performance Dashboard**
+```bash
+# Ottimizza queries MongoDB con explain
+db.metrics.explain("executionStats").find({
+    "timestamp": {$gte: ISODate("2024-01-01")}
+}).sort({"timestamp": -1}).limit(1000)
+
+# Aggiungi indexes per performance
+db.metrics.createIndex({"asset_id": 1, "timestamp": -1})
+db.metrics.createIndex({"timestamp": -1})
+```
+
+#### **4. Memory Issues con Analisi Grandi**
+```python
+# Configura pagination per dataset grandi
+BATCH_SIZE = 1000
+cursor = db.metrics.find().batch_size(BATCH_SIZE)
+
+# Usa streaming per file JSON grandi
+import ijson
+parser = ijson.parse(open('large_analysis.json', 'rb'))
+```
+
+### **Best Practices Operative**
+
+#### **1. Gestione Baseline SPC**
+- **Ricalcolo Automatico**: Il sistema ricalcola baseline quando detect shift sistematici
+- **Minimum Data Points**: Almeno 20 punti per baseline affidabile
+- **Historical Window**: Usa 3 giorni di storia (72 ore) per baseline stabile
+- **Validation**: Controlla baseline dopo manutenzioni o modifiche HW/SW
+
+#### **2. Configurazione Pesi Metriche**
+- **CPU Intensive Apps**: Peso CPU 50-60%, RAM 25-30%, I/O 15-20%
+- **Database Systems**: Peso I/O 40-50%, RAM 30-35%, CPU 15-25%  
+- **Web Servers**: Peso bilanciato 33% ciascuno
+- **Monitoring**: Ricalibra pesi basandosi su historical patterns
+
+#### **3. Thresholds e Alerting**
+```python
+# Configurazione alert per P-Score
+ALERT_THRESHOLDS = {
+    'critical': 0.3,    # P-Score < 30% = Alert immediato
+    'warning': 0.6,     # P-Score < 60% = Warning
+    'good': 0.8         # P-Score > 80% = Performance buone
+}
+
+# Alert su test pattern specifici
+PATTERN_ALERTS = {
+    'trend_degradation': ['test8'],      # Trend negativo
+    'process_shift': ['test4'],          # Shift sistematico  
+    'high_variability': ['testmr'],      # Variabilità alta
+    'saturation': ['saturazione']        # Risorse sature
+}
+```
+
+#### **4. Data Retention Policy**
+```javascript
+// MongoDB TTL indexes per data retention
+db.metrics.createIndex(
+    {"timestamp": 1}, 
+    {expireAfterSeconds: 7776000}  // 90 giorni
+)
+
+db.metrics_advanced_test.createIndex(
+    {"timestamp": 1},
+    {expireAfterSeconds: 2592000}  // 30 giorni
+)
+```
+
+### **Maintenance Tasks**
+
+#### **Daily Operations**
+```bash
+# 1. Backup configurazioni
+mongodump --db sixsigma_monitoring --collection sixsigma_weights_config
+
+# 2. Verifica log errors
+grep "ERROR" logs/application.log | tail -20
+
+# 3. Controllo disk space
+df -h /var/log/metrics_dashboard/
+
+# 4. Health check endpoints
+curl http://localhost:5000/sixsigma/test/demo
+```
+
+#### **Weekly Operations**  
+```bash
+# 1. Restart applicazione per memory cleanup
+sudo systemctl restart metrics-dashboard
+
+# 2. Analizza performance queries
+mongo sixsigma_monitoring --eval "db.setProfilingLevel(2)"
+
+# 3. Backup complete database
+mongodump --db pmi_infrastructure --db sixsigma_monitoring
+
+# 4. Update baseline cache se necessario
+python utils/maintenance_scripts.py --update-baselines
+```
+
+### **Security Considerations**
+
+#### **1. MongoDB Security**
+```javascript
+// Crea utente applicazione con privilegi minimi
+use admin
+db.createUser({
+    user: "metrics_app",
+    pwd: "secure_password",
+    roles: [
+        {role: "readWrite", db: "pmi_infrastructure"},
+        {role: "readWrite", db: "sixsigma_monitoring"}
+    ]
+})
+```
+
+#### **2. Flask Security Headers**
+```python
+# app.py security headers
+@app.after_request
+def after_request(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    return response
+```
+
+## 📋 Conclusioni e Sviluppi Futuri
+
+### **Sistema Attuale - Capabilities**
+✅ **Three-Module Analytics Platform**: Availability, Resilience, Six Sigma SPC
+✅ **Real-time SPC Monitoring**: 8 test statistici con XmR control charts  
+✅ **Weighted Scoring Systems**: Configurabile via MongoDB persistence
+✅ **Interactive Dashboards**: Chart.js con timeline navigation
+✅ **Asynchronous Processing**: Background jobs per analisi pesanti
+✅ **MongoDB Integration**: Multiple databases con ottimizzazioni
+✅ **Responsive UI**: Bootstrap con theme dark/light support
+
+### **Roadmap Tecnica Futura**
+🔄 **Machine Learning Integration**: Predictive analytics su trend SPC
+🔄 **API Authentication**: JWT tokens per sicurezza endpoints
+🔄 **Real-time Notifications**: WebSocket per alert immediati
+🔄 **Export Capabilities**: PDF/Excel reports generation
+🔄 **Multi-tenancy**: Support per multiple PMI environments
+🔄 **Advanced Analytics**: MTTR, MTBF, availability forecasting
+
+---
+
+**Documentazione aggiornata:** `{{ current_date }}`
+**Versione Sistema:** `v2.1.0 - Six Sigma SPC Integration`
+**Autore:** PMI Infrastructure Team
+**Repository:** `metrics_dashboard/`
+
+```
+metrics_dashboard/
+├── app.py                          # Flask application server principale
+├── run.py                          # Script di avvio dell'applicazione
+├── requirements.txt                # Dipendenze Python specifiche
+├── .env                           # Variabili d'ambiente di produzione
+├── .env.example                   # Template per configurazione
+├── __init__.py                    # Package initialization
+├── templates/                     # Template HTML Jinja2
+│   ├── index.html                # Pagina principale selezione modulo
+│   # AVAILABILITY MODULE
+│   ├── availability_index.html   # Pagina selezione analisi availability
+│   ├── availability_config.html  # Interfaccia configurazione availability
+│   └── availability_dashboard.html # Dashboard real-time availability
+│   # RESILIENCE MODULE
+│   ├── resilience_index.html     # Pagina selezione analisi resilience  
+│   ├── resilience_config.html    # Interfaccia configurazione resilience
+│   └── resilience_dashboard.html # Dashboard real-time resilience
+│   # SIX SIGMA SPC MODULE (NUOVO)
+│   ├── sixsigma_index.html       # Pagina selezione Six Sigma (tema dark/light)
+│   ├── sixsigma_config.html      # Configurazione pesi metriche per macchina
+│   └── sixsigma_dashboard.html   # Dashboard SPC real-time con test statistici
+├── static/                       # Assets statici (CSS, JS, immagini)
+│   └── sixsigma_script.js        # Logic frontend Six Sigma (Chart.js, SPC)
+├── utils/                        # Moduli di utility e business logic
+│   # AVAILABILITY ANALYTICS
+│   ├── cumulative_availability_analyzer.py  # Core analyzer engine availability
+│   ├── availability_summary.py              # Summary aggregator availability
+│   # RESILIENCE ANALYTICS
+│   ├── cumulative_resilience_analyzer.py    # Core analyzer engine resilience
+│   ├── backup_summary.py                    # Summary aggregator backup/resilience
+│   # SIX SIGMA SPC ANALYTICS (NUOVO)
+│   ├── sixsigma_utils.py                    # Core SPC engine con test statistici
+│   └── generate_metrics_spc.py              # Generatore dati SPC per testing
+├── output/                       # Directory per output JSON generati
+│   ├── cumulative_availability_analysis_*.json  # Report availability
+│   ├── resilience_analysis_*.json               # Report resilience
+│   └── verify_and_enhance_analysis.py           # Utility validazione
+└── __pycache__/                  # Cache Python compilato
+```
 
 Il sistema calcola la resilience dei backup utilizzando un approccio multi-metrica:
 
@@ -132,7 +930,7 @@ metrics_dashboard/
 
 #### **1. Configurazione Dinamica dei Parametri**
 - **Selezione Servizi**: Recupero automatico da collection MongoDB "assets"
-- **Error Budget Personalizzabili**: Configurazione soglie per ogni servizio
+- **Error Budget Personalizzabili**: Configurazione soglie fallimenti per ogni servizio
 - **Pesi di Criticità**: Definizione dell'impatto di ogni servizio sull'health score aggregato
 
 #### **2. Analisi Cumulativa in Background**
@@ -147,7 +945,89 @@ metrics_dashboard/
 - **Timeline Navigation**: Controlli play/pause per scorrimento temporale dei dati
 - **Status Indicators**: Codifica a colori per stato operativo (Critical/Attenzione/Good)
 
-### **Modulo Resilience** (NUOVO)
+### **Modulo Resilience**
+
+#### **1. Configurazione Avanzata RPO e Pesi**
+- **Target RPO Personalizzabili**: Configurazione obiettivi RPO per asset e backup jobs
+- **Pesi Metriche Configurabili**: Bilanciamento tra RPO Compliance e Success Rate
+- **Selezione Asset e Backup Jobs**: Recupero automatico da MongoDB con filtri per tipo
+- **Configurazione per Tipo Asset**: VM, Container, Server Fisici, Nodi Proxmox
+
+#### **2. Analisi Resilience Cumulativa**
+- **Simulazione Settimanale**: Analisi ora per ora per 168 ore (1 settimana)
+- **RPO Compliance Calculation**: Monitoraggio deviazioni dai target RPO configurati
+- **Success Rate Tracking**: Calcolo percentuale successo backup cumulativo
+- **Weighted Scoring**: Combinazione ponderata delle metriche con pesi configurabili
+
+#### **3. Dashboard Resilience Interattiva**
+- **Grafico a Ciambella Aggregato**: Visualizzazione distribuzione livelli di resilience
+- **Indicatori Circolari**: Score resilience per singolo asset/backup job
+- **Timeline Temporale**: Navigazione cronologica dell'andamento resilience
+- **Status Colorati**: Classificazione visiva (Excellent/Good/Acceptable/Critical/Severe)
+
+#### **4. Gestione File JSON di Output**
+- **Selezione File Esistenti**: Caricamento analisi resilience precedenti
+- **Report Strutturati**: File JSON con configurazione, timeline e metriche dettagliate
+- **Timestamp Automatico**: Nomenclatura file con data/ora generazione
+- **Persistenza Configurazione**: Salvataggio parametri per riuso futuro
+
+### **Modulo Six Sigma SPC** (NUOVO)
+
+#### **1. Configurazione Pesi Metriche per Macchina**
+- **Auto-Balancing Sliders**: Slider automatici che mantengono 100% totale
+- **Pesi Personalizzabili**: CPU, RAM, I/O Wait configurabili per ogni macchina
+- **Persistenza MongoDB**: Salvataggio configurazione in collection `sixsigma_weights_config`
+- **Cache Performance**: Sistema di cache per accesso rapido ai pesi configurati
+- **Fallback Intelligente**: Valori di default se configurazione non trovata
+
+#### **2. Statistical Process Control Engine**
+- **Carte di Controllo XmR**: Individual & Moving Range charts con limiti dinamici
+- **8 Test SPC Completi**: Implementazione completa dei test statistici industriali
+- **Baseline Dinamico**: Calcolo automatico CL, UCL, LCL da dati storici (3 giorni)
+- **Ricalcolo Automatico**: Trigger per ricalcolo baseline quando detectati shift sistematici
+- **Zone Sigma**: Calcolo zone 1σ, 2σ, 3σ per test avanzati
+
+#### **3. Test Statistici Implementati**
+
+**Test di Priorità Critica (Score 0.0-0.2):**
+- **Test 1 - Violazione Limite X**: Punto fuori UCL/LCL (Score: 0.1)
+- **Test mR - Alta Variabilità**: Moving Range > UCL_mR (Score: 0.2)  
+- **Saturazione Risorsa**: Valore ≥ 100% utilizzo (Score: 0.0)
+
+**Test di Shift Sistematico (Score 0.4):**
+- **Test 4 - Run Test**: 8 punti consecutivi stesso lato della media
+- **Test 8 - Trend Lineare**: 6 punti consecutivi crescenti/decrescenti
+
+**Test di Pre-allarme (Score 0.6-0.7):**
+- **Test 2 - Zona A**: 2 di 3 punti oltre 2σ dalla media
+- **Test 3 - Zona B**: 4 di 5 punti oltre 1σ dalla media
+
+#### **4. Dashboard SPC Real-time**
+- **Grafici XmR Separati**: CPU, RAM, I/O Wait con Chart.js interattivi
+- **P-Score Aggregato**: Visualizzazione centrale con classificazione colorata
+- **Simulazione Temporale**: Timeline con controlli play/pause (2 secondi/punto)
+- **Log Dettagliati**: Separati per metrica con descrizione anomalie e teoria SPC
+- **Statistiche Test**: Contatori aggiornati in tempo reale per ogni test
+- **Zoom Dinamico**: Opzione zoom automatico per visualizzazione ottimale
+- **Gestione Pause**: Sistema pause/resume per grafici con anomalie critiche
+
+#### **5. Visualizzazione Pesi Correnti**
+- **Sezione Pesi Macchina**: Mostra i pesi utilizzati per calcolo P-Score
+- **Aggiornamento Automatico**: Quando si cambia macchina, i pesi si aggiornano
+- **Badge Colorati**: CPU (blu), RAM (verde), I/O Wait (giallo) per identificazione
+- **Informazioni Tooltips**: Spiegazione ruolo pesi nel calcolo finale
+
+#### **6. Sistema di Cache e Performance**
+- **Baseline Cache**: Cache dei parametri baseline calcolati per performance
+- **Pause Charts Cache**: Gestione grafici in pausa per anomalie
+- **Weights Cache**: Cache pesi configurazioni per accesso rapido
+- **Recalculate Counters**: Gestione intelligente dei trigger di ricalcolo
+
+### **4. Integrazione Storage Layer**
+- **MongoDB Connection**: Accesso a multiple database (pmi_infrastructure, sixsigma_monitoring)
+- **AssetDocument Models**: Utilizzo di modelli strutturati per asset management
+- **Collection Multiple**: assets, metrics, sixsigma_weights_config, metrics_advanced_test
+- **Query Ottimizzate**: Recupero efficiente di metriche con filtri temporali
 
 #### **1. Configurazione Avanzata RPO e Pesi**
 - **Target RPO Personalizzabili**: Configurazione obiettivi RPO per asset e backup jobs
