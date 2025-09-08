@@ -9,6 +9,7 @@ network_discovery/config/__pycache__/
 network_discovery/core/__pycache__/
 network_discovery/scanners/__pycache__/
 network_discovery/utils/__pycache__/
+network_discovery/anomaly_snmp/__pycache__/
 *.pyc
 *.pyo
 *.pyd

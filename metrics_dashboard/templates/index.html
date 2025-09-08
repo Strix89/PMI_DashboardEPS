@@ -90,6 +90,11 @@
             color: white;
         }
 
+        .anomaly-snmp-card .card-header {
+            background: linear-gradient(135deg, #ff8c00, #ff6b35);
+            color: white;
+        }
+
         .dashboard-icon {
             font-size: 4rem;
             margin-bottom: 1rem;
@@ -226,6 +231,21 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="col-md-5 mb-4">
+                    <div class="card dashboard-card anomaly-snmp-card" onclick="selectDashboard('anomaly_snmp')">
+                        <div class="card-header">
+                            <i class="fas fa-network-wired dashboard-icon"></i>
+                            <h3 class="dashboard-title">AnomalySNMP</h3>
+                        </div>
+                        <div class="card-body">
+                            <p class="dashboard-description">
+                                Rilevamento anomalie per dati di rete SNMP con Isolation Forest.
+                                Simulazione tempo reale e calcolo score di salute comportamentale.
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="footer-info">
@@ -255,6 +275,8 @@
                     window.location.href = '/resilience';
                 } else if (type === 'sixsigma') {
                     window.location.href = '/sixsigma';
+                } else if (type === 'anomaly_snmp') {
+                    window.location.href = '/anomaly_snmp/configure';
                 }
             }, 150);
         }

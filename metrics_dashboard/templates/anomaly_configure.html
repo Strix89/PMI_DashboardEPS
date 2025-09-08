@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AnomalySNMP - Configurazione</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #ff8c00;        /* Arancione dominante */
+            --secondary-color: #2c3e50;
+            --success-color: #27ae60;
+            --warning-color: #ff6b35;        /* Arancione warning */
+            --danger-color: #e74c3c;
+            --light-bg: #f8fafc;             /* Sfondo più neutro */
+            --dark-bg: #1a1a1a;             /* Scuro più profondo */
+            --text-light: #1a202c;          /* Testo più scuro per contrasto */
+            --text-dark: #f7fafc;           /* Testo chiaro più leggibile */
+            --text-muted-light: #4a5568;    /* Testo secondario tema chiaro */
+            --text-muted-dark: #cbd5e0;     /* Testo secondario tema scuro */
+            --accent-orange: #ff8c00;       /* Arancione accent */
+            --card-light: #ffffff;          /* Card chiare */
+            --card-dark: #2d3748;           /* Card scure con più contrasto */
+            --border-light: #e2e8f0;        /* Bordi tema chiaro */
+            --border-dark: #4a5568;         /* Bordi tema scuro */
+        }
+
+        [data-theme="dark"] {
+            --light-bg: var(--dark-bg);
+            --text-light: var(--text-dark);
+            --card-light: var(--card-dark);
+            background-color: var(--dark-bg);
+            color: var(--text-dark);
+        }
+
+        [data-theme="dark"] .card {
+            background-color: var(--card-dark);
+            border: 1px solid var(--border-dark);
+            color: var(--text-dark);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Miglioramento visibilità testo */
+        .text-muted {
+            color: var(--text-muted-light) !important;
+        }
+
+        [data-theme="dark"] .text-muted {
+            color: var(--text-muted-dark) !important;
+        }
+
+        /* Miglioramento form-text */
+        .form-text {
+            color: var(--text-muted-light) !important;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        [data-theme="dark"] .form-text {
+            color: var(--text-muted-dark) !important;
+        }
+
+        /* Miglioramento card-header */
+        .card-header {
+            background-color: rgba(248, 250, 252, 0.8) !important;
+            border-bottom: 1px solid var(--border-light);
+            color: var(--text-light) !important;
+            font-weight: 600;
+        }
+
+        [data-theme="dark"] .card-header {
+            background-color: rgba(45, 55, 72, 0.8) !important;
+            border-bottom: 1px solid var(--border-dark);
+            color: var(--text-dark) !important;
+        }
+
+        [data-theme="dark"] .form-control {
+            background-color: #4a5568;
+            border-color: var(--border-dark);
+            color: var(--text-dark);
+        }
+
+        [data-theme="dark"] .form-control:focus {
+            background-color: #4a5568;
+            border-color: var(--accent-orange);
+            color: var(--text-dark);
+            box-shadow: 0 0 0 0.2rem rgba(255, 140, 0, 0.25);
+        }
+
+        [data-theme="dark"] .form-control:disabled {
+            background-color: var(--card-dark);
+            border-color: var(--border-dark);
+            color: var(--text-muted-dark);
+        }
+
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: var(--card-light);
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: var(--card-light);
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .theme-toggle:hover, .back-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .theme-toggle i, .back-button i {
+            color: var(--accent-orange);
+            font-size: 1.2rem;
+        }
+
+        body {
+            background-color: var(--light-bg);
+            color: var(--text-light);
+            transition: all 0.3s ease;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .config-container {
+            min-height: 100vh;
+            background: linear-gradient(135deg, var(--accent-orange), #ff6b35);
+            padding: 2rem 0;
+        }
+
+        .config-card {
+            background: var(--card-light);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            border: none;
+            transition: all 0.3s ease;
+        }
+
+        [data-theme="dark"] .config-card {
+            background: var(--card-dark);
+            border: 1px solid #404040;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+        }
+
+        .card {
+            background-color: var(--card-light);
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        /* Pulsanti tema arancione */
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-orange), #ff6b35);
+            border-color: var(--accent-orange);
+            font-weight: 600;
+            border-radius: 10px;
+            padding: 12px 24px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #e67e00, var(--accent-orange));
+            border-color: #e67e00;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(255, 140, 0, 0.4);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--success-color), #2ecc71);
+            border-color: var(--success-color);
+            font-weight: 600;
+            border-radius: 10px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(39, 174, 96, 0.4);
+        }
+
+        .btn-secondary {
+            border-radius: 10px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-1px);
+        }
+
+        /* Form controls migliorati */
+        .form-control {
+            border-radius: 10px;
+            border: 2px solid #dee2e6;
+            padding: 12px 16px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus {
+            border-color: var(--accent-orange);
+            box-shadow: 0 0 0 0.2rem rgba(255, 140, 0, 0.25);
+        }
+
+        .form-control:disabled {
+            background-color: #f8f9fa;
+            border-color: #dee2e6;
+            color: #6c757d;
+        }
+
+        /* Stili per slider più visibili */
+        .form-range {
+            height: 10px;
+            background: linear-gradient(to right, #e9ecef 0%, var(--accent-orange) 100%);
+            border-radius: 10px;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        /* Tema scuro - slider */
+        [data-theme="dark"] .form-range {
+            background: linear-gradient(to right, #495057 0%, var(--accent-orange) 100%);
+        }
+
+        .form-range::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--accent-orange);
+            cursor: pointer;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .form-range::-moz-range-thumb {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--accent-orange);
+            cursor: pointer;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .form-range::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(255, 140, 0, 0.5);
+        }
+
+        .slider-value {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: var(--accent-orange);
+            min-width: 80px;
+            text-align: center;
+            padding: 8px 12px;
+            background: rgba(255, 140, 0, 0.1);
+            border-radius: 10px;
+            border: 2px solid rgba(255, 140, 0, 0.3);
+        }
+
+        [data-theme="dark"] .slider-value {
+            background: rgba(255, 140, 0, 0.15);
+            border-color: rgba(255, 140, 0, 0.4);
+            color: #ffb366;
+        }
+
+        /* Headings arancioni */
+        h1, h2, h3, h4, h5 {
+            color: var(--accent-orange);
+            font-weight: 700;
+        }
+
+        [data-theme="dark"] h1, 
+        [data-theme="dark"] h2, 
+        [data-theme="dark"] h3, 
+        [data-theme="dark"] h4, 
+        [data-theme="dark"] h5 {
+            color: #ffb366;
+        }
+
+        .parameter-card {
+            border: 2px solid var(--border-light);
+            border-radius: 15px;
+            margin-bottom: 1.5rem;
+            transition: all 0.3s ease;
+            background: var(--card-light);
+        }
+
+        .parameter-card:hover {
+            border-color: var(--accent-orange);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(255, 140, 0, 0.1);
+        }
+
+        [data-theme="dark"] .parameter-card {
+            background: var(--card-dark);
+            border-color: var(--border-dark);
+        }
+
+        [data-theme="dark"] .parameter-card:hover {
+            border-color: var(--accent-orange);
+        }
+
+        /* Miglioramento contenuto parameter-card */
+        .parameter-card .p-3 {
+            color: var(--text-light);
+        }
+
+        [data-theme="dark"] .parameter-card .p-3 {
+            color: var(--text-dark);
+        }
+
+        .parameter-header {
+            background: var(--accent-orange);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 13px 13px 0 0;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .parameter-icon {
+            font-size: 1.2em;
+            margin-right: 0.5rem;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin: 1rem 0;
+        }
+
+        .slider-label {
+            min-width: 120px;
+            font-weight: 500;
+            color: var(--text-light);
+        }
+
+        [data-theme="dark"] .slider-label {
+            color: var(--text-dark);
+        }
+
+        /* Miglioramento testo piccolo sotto slider */
+        .d-flex.justify-content-between.text-muted.small span {
+            color: var(--text-muted-light) !important;
+            font-weight: 500;
+        }
+
+        [data-theme="dark"] .d-flex.justify-content-between.text-muted.small span {
+            color: var(--text-muted-dark) !important;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .loading-spinner {
+            width: 80px;
+            height: 80px;
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid var(--accent-orange);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .progress-bar-custom {
+            height: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            background: #e9ecef;
+            margin: 20px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-orange), var(--success-color));
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .error-message {
+            background: #fff5f5;
+            border: 1px solid #fed7d7;
+            color: #c53030;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+
+        [data-theme="dark"] .error-message {
+            background: rgba(231, 76, 60, 0.1);
+            border-color: rgba(231, 76, 60, 0.3);
+        }
+
+        .info-panel {
+            background: linear-gradient(45deg, var(--accent-orange), #ff6b35);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+        }
+
+        .dataset-info {
+            background: rgba(255, 140, 0, 0.08);
+            border: 2px solid rgba(255, 140, 0, 0.25);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            color: var(--text-light);
+        }
+
+        [data-theme="dark"] .dataset-info {
+            background: rgba(255, 140, 0, 0.12);
+            border-color: rgba(255, 140, 0, 0.35);
+            color: var(--text-dark);
+        }
+
+        .dataset-info strong {
+            color: var(--text-light);
+            font-weight: 600;
+        }
+
+        [data-theme="dark"] .dataset-info strong {
+            color: var(--text-dark);
+        }
+
+        .dataset-info small {
+            color: var(--text-muted-light);
+        }
+
+        [data-theme="dark"] .dataset-info small {
+            color: var(--text-muted-dark);
+        }
+    </style>
+</head>
+<body data-theme="light">
+    <button class="back-button btn" onclick="location.href='/'" title="Torna alla Home">
+        <i class="fas fa-arrow-left"></i>
+    </button>
+
+    <button class="theme-toggle btn" onclick="toggleTheme()" title="Cambia tema">
+        <i class="fas fa-moon" id="theme-icon"></i>
+    </button>
+
+    <div class="config-container">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-lg-8 col-xl-6">
+                    <div class="config-card p-4">
+                        <div class="text-center mb-4">
+                            <div class="mb-3">
+                                <i class="fas fa-network-wired fa-4x" style="color: var(--accent-orange); filter: drop-shadow(0 4px 8px rgba(255, 140, 0, 0.3));"></i>
+                            </div>
+                            <h1 class="h2 mb-3" style="background: linear-gradient(135deg, var(--accent-orange), #ff6b35); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 900;">
+                                AnomalySNMP Configuration
+                            </h1>
+                            <p class="text-muted fs-5">Configura i parametri per il rilevamento anomalie SNMP</p>
+                        </div>
+
+                        <!-- Info Panel -->
+                        <div class="info-panel">
+                            <h5><i class="fas fa-info-circle me-2"></i>Informazioni Sistema</h5>
+                            <p class="mb-2">
+                                Il sistema utilizza <strong>Isolation Forest</strong> combinato con <strong>Statistical Process Control</strong> 
+                                per rilevare anomalie nei dati di rete SNMP in tempo reale.
+                            </p>
+                            <p class="mb-0">
+                                <strong>Dataset:</strong> SNMP-MIB con 4998 record (600 normali + 4398 anomalie) e 8 feature di interfaccia.
+                            </p>
+                        </div>
+
+                        <form id="configForm">
+                            <!-- Dataset Selection -->
+                            <div class="parameter-card">
+                                <div class="parameter-header">
+                                    <span>
+                                        <i class="fas fa-database parameter-icon"></i>
+                                        Selezione Dataset
+                                    </span>
+                                </div>
+                                <div class="p-3">
+                                    <div class="dataset-info">
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-check-circle text-success me-2"></i>
+                                            <strong>Dataset preselezionato e validato</strong>
+                                        </div>
+                                        <small class="text-muted">
+                                            Il dataset SNMP-MIB è già configurato e ottimizzato per il sistema
+                                        </small>
+                                    </div>
+                                    <input type="text" class="form-control" value="SNMP-MIB Dataset" disabled>
+                                    <div class="form-text">
+                                        <i class="fas fa-chart-bar me-1"></i>
+                                        4998 record totali • 8 feature • 7 tipi di attacco consolidati
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Train Split Parameter -->
+                            <div class="parameter-card">
+                                <div class="parameter-header">
+                                    <span>
+                                        <i class="fas fa-chart-pie parameter-icon"></i>
+                                        Suddivisione Dati
+                                    </span>
+                                    <span class="slider-value" id="train-split-value">70%</span>
+                                </div>
+                                <div class="p-3">
+                                    <div class="slider-container">
+                                        <span class="slider-label">Training:</span>
+                                        <input type="range" class="form-range flex-grow-1" 
+                                               id="train-split-slider" 
+                                               min="50" max="90" value="70" step="5"
+                                               oninput="updateTrainSplit(this.value)">
+                                    </div>
+                                    <div class="d-flex justify-content-between text-muted small">
+                                        <span>50% Training</span>
+                                        <span>90% Training</span>
+                                    </div>
+                                    <div class="form-text mt-2">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        Percentuale di dati utilizzati per l'addestramento del modello. 
+                                        Il resto sarà utilizzato per la simulazione.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Contamination Parameter -->
+                            <div class="parameter-card">
+                                <div class="parameter-header">
+                                    <span>
+                                        <i class="fas fa-exclamation-triangle parameter-icon"></i>
+                                        Livello di Contaminazione
+                                    </span>
+                                    <span class="slider-value" id="contamination-value">5.0%</span>
+                                </div>
+                                <div class="p-3">
+                                    <div class="slider-container">
+                                        <span class="slider-label">Contamination:</span>
+                                        <input type="range" class="form-range flex-grow-1" 
+                                               id="contamination-slider" 
+                                               min="1" max="15" value="5" step="0.5"
+                                               oninput="updateContamination(this.value)">
+                                    </div>
+                                    <div class="d-flex justify-content-between text-muted small">
+                                        <span>1% (Bassa)</span>
+                                        <span>15% (Alta)</span>
+                                    </div>
+                                    <div class="form-text mt-2">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        Percentuale attesa di anomalie nel dataset. Influenza la sensibilità del modello 
+                                        e il calcolo del target per l'oversampling SMOTE.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Configuration Summary -->
+                            <div class="card mt-4">
+                                <div class="card-header bg-light">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-clipboard-list me-2"></i>
+                                        Riepilogo Configurazione
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <small class="text-muted">Dataset:</small>
+                                            <div class="fw-bold">SNMP-MIB Dataset</div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <small class="text-muted">Training Split:</small>
+                                            <div class="fw-bold" id="summary-train-split">70%</div>
+                                        </div>
+                                    </div>
+                                    <div class="row mt-2">
+                                        <div class="col-md-6">
+                                            <small class="text-muted">Contamination:</small>
+                                            <div class="fw-bold" id="summary-contamination">5.0%</div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <small class="text-muted">Algoritmo:</small>
+                                            <div class="fw-bold">Isolation Forest + SPC</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="d-grid gap-3 mt-4">
+                                <button type="button" class="btn btn-success btn-lg" onclick="startTraining()" id="startBtn" 
+                                        style="border-radius: 15px; padding: 15px; font-size: 1.1rem;">
+                                    <i class="fas fa-rocket me-2"></i> 
+                                    Prepara Dati, Addestra e Avvia Simulazione
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="resetToDefaults()">
+                                    <i class="fas fa-undo me-2"></i> 
+                                    Reset Parametri Default
+                                </button>
+                            </div>
+                        </form>
+
+                        <div id="error-container"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay" style="display: none;">
+        <div class="text-center text-white">
+            <div class="loading-spinner mb-4"></div>
+            <h4 id="loading-title">Training del modello in corso...</h4>
+            <p id="loading-message">Preparazione dati, addestramento e configurazione simulazione</p>
+            <div class="progress-bar-custom" style="width: 400px;">
+                <div class="progress-fill" id="loading-progress" style="width: 0%">0%</div>
+            </div>
+            <div class="mt-3">
+                <small class="text-muted">
+                    <i class="fas fa-cog fa-spin me-1"></i>
+                    Questo processo può richiedere alcuni secondi...
+                </small>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Inizializzazione
+        document.addEventListener('DOMContentLoaded', function() {
+            loadTheme();
+            updateTrainSplit(70);
+            updateContamination(5);
+        });
+
+        // Gestione tema
+        function toggleTheme() {
+            const body = document.body;
+            const currentTheme = body.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            body.setAttribute('data-theme', newTheme);
+            
+            const icon = document.getElementById('theme-icon');
+            icon.className = newTheme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+            
+            localStorage.setItem('theme', newTheme);
+        }
+
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.body.setAttribute('data-theme', savedTheme);
+            document.getElementById('theme-icon').className = 
+                savedTheme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+        }
+
+        // Aggiornamento parametri
+        function updateTrainSplit(value) {
+            document.getElementById('train-split-value').textContent = value + '%';
+            document.getElementById('summary-train-split').textContent = value + '%';
+        }
+
+        function updateContamination(value) {
+            const percentage = (value / 100 * 100).toFixed(1);
+            document.getElementById('contamination-value').textContent = percentage + '%';
+            document.getElementById('summary-contamination').textContent = percentage + '%';
+        }
+
+        // Reset parametri default
+        function resetToDefaults() {
+            document.getElementById('train-split-slider').value = 70;
+            document.getElementById('contamination-slider').value = 5;
+            updateTrainSplit(70);
+            updateContamination(5);
+        }
+
+        // Avvio training
+        async function startTraining() {
+            const trainSplit = parseInt(document.getElementById('train-split-slider').value) / 100;
+            const contamination = parseInt(document.getElementById('contamination-slider').value) / 100;
+            
+            // Mostra loading overlay
+            showLoading();
+            
+            try {
+                const response = await fetch('/anomaly_snmp/api/train_model', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        train_split: trainSplit,
+                        contamination: contamination
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Simula progresso
+                    await simulateProgress();
+                    
+                    // Reindirizza alla dashboard
+                    window.location.href = data.redirect_url;
+                } else {
+                    hideLoading();
+                    showError(data.error || 'Errore durante il training del modello');
+                }
+                
+            } catch (error) {
+                hideLoading();
+                showError('Errore di connessione: ' + error.message);
+            }
+        }
+
+        // Simulazione progresso
+        async function simulateProgress() {
+            const steps = [
+                { progress: 20, message: 'Caricamento dataset SNMP-MIB...' },
+                { progress: 40, message: 'Preprocessing e trasformazione etichette...' },
+                { progress: 60, message: 'Normalizzazione feature e oversampling SMOTE...' },
+                { progress: 80, message: 'Training Isolation Forest...' },
+                { progress: 95, message: 'Calcolo baseline e preparazione simulazione...' },
+                { progress: 100, message: 'Completato! Reindirizzamento alla dashboard...' }
+            ];
+            
+            for (const step of steps) {
+                document.getElementById('loading-progress').style.width = step.progress + '%';
+                document.getElementById('loading-progress').textContent = step.progress + '%';
+                document.getElementById('loading-message').textContent = step.message;
+                await new Promise(resolve => setTimeout(resolve, 800));
+            }
+        }
+
+        // Gestione loading
+        function showLoading() {
+            document.getElementById('loading-overlay').style.display = 'flex';
+            document.getElementById('startBtn').disabled = true;
+        }
+
+        function hideLoading() {
+            document.getElementById('loading-overlay').style.display = 'none';
+            document.getElementById('startBtn').disabled = false;
+        }
+
+        // Gestione errori
+        function showError(message) {
+            const errorContainer = document.getElementById('error-container');
+            errorContainer.innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Errore:</strong> ${message}
+                </div>
+            `;
+            
+            // Auto-hide dopo 5 secondi
+            setTimeout(() => {
+                errorContainer.innerHTML = '';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>       

@@ -23,12 +23,18 @@ from storage_layer.exceptions import StorageManagerError
 # Import Six Sigma utilities
 from utils.sixsigma_utils import get_collection, calcola_baseline, monitora_nuovo_dato, BASELINE_DATA_POINTS
 
+# Import AnomalySNMP Blueprint
+from anomaly_snmp.routes import anomaly_snmp_bp
+
 # Configurazione logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'availability-dashboard-secret-key-2025')
+
+# Registra il Blueprint AnomalySNMP
+app.register_blueprint(anomaly_snmp_bp)
 
 # Cache per le baseline Six Sigma
 baseline_cache = {}
