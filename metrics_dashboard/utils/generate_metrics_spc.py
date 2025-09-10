@@ -69,18 +69,18 @@ def genera_spike(profilo):
 def genera_shift(profilo, lunghezza=9):
     """
     Genera una sequenza di dati con una media spostata.
-    OBIETTIVO: Attivare il Test 4 (Run Test).
+    OBIETTIVO: Attivare il Test 4 (Run Above/Below Centerline).
     """
     media, sigma = profilo['mean'], profilo['std_dev']
     # Sposta la media di circa 1.5-2 sigma in una direzione casuale
     nuova_media = media + random.choice([-1, 1]) * random.uniform(1.5, 2.0) * sigma
     valori = np.random.normal(nuova_media, sigma, lunghezza)
-    return [clamp(v) for v in valori], "Test 4 - Run Test (Shift Media)"
+    return [clamp(v) for v in valori], "Test 4 - Run Above/Below Centerline"
 
 def genera_trend(profilo, lunghezza=7):
     """
     Genera una sequenza con un andamento lineare crescente o decrescente.
-    OBIETTIVO: Attivare il Test 8 (Trend Lineare).
+    OBIETTIVO: Attivare il Test 8 (Linear Trend).
     """
     media, sigma = profilo['mean'], profilo['std_dev']
     direzione = random.choice([-1, 1])
@@ -88,7 +88,7 @@ def genera_trend(profilo, lunghezza=7):
     step = sigma * random.uniform(0.4, 0.8)
     # Aggiunge un po' di rumore per rendere il trend più realistico
     valori = [clamp(media + (i * step * direzione) + np.random.normal(0, sigma/3)) for i in range(lunghezza)]
-    return valori, "Test 8 - Trend Lineare"
+    return valori, "Test 8 - Linear Trend"
 
 def genera_violazione_zone(profilo):
     """
@@ -122,16 +122,26 @@ def genera_violazione_zone(profilo):
 def genera_oscillazione(profilo, lunghezza=14):
     """
     Genera una sequenza di dati che si alterna rapidamente attorno alla media.
-    OBIETTIVO: Attivare il Test 7 (Trend Oscillatorio).
+    OBIETTIVO: Attivare il Test 7 (Oscillatory Trend).
+    Implementa il pattern: p1<p2>p3<p4>p5<p6>p7<p8>p9<p10>p11<p12>p13<p14
     """
     media, sigma = profilo['mean'], profilo['std_dev']
-    valori = [media]
-    for i in range(lunghezza):
-        if i % 2 == 0: # Punto alto
-            valori.append(clamp(media + random.uniform(0.5, 1.5) * sigma))
-        else: # Punto basso
-            valori.append(clamp(media - random.uniform(0.5, 1.5) * sigma))
-    return valori[1:], "Test 7 - Trend Oscillatorio"
+    valori = []
+    
+    # Genera il primo valore come punto di partenza
+    primo_valore = media + random.uniform(-0.3, 0.3) * sigma
+    valori.append(clamp(primo_valore))
+    
+    # Genera i successivi 13 valori seguendo il pattern oscillatorio
+    for i in range(1, lunghezza):
+        if i % 2 == 1:  # Indici dispari: valore più alto del precedente
+            nuovo_valore = valori[i-1] + random.uniform(0.3, 0.8) * sigma
+        else:  # Indici pari: valore più basso del precedente
+            nuovo_valore = valori[i-1] - random.uniform(0.3, 0.8) * sigma
+        
+        valori.append(clamp(nuovo_valore))
+    
+    return valori, "Test 7 - Oscillatory Trend"
 
 def genera_stratificazione(profilo, lunghezza=15):
     """

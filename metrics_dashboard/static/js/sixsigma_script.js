@@ -402,7 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Aggiorna le statistiche per ogni metrica
             updateTestStatistics(stato);
 
-            // 🔶 GESTIONE SPECIALE PER GRAFICI IN PAUSA (Test 4/8 in ricalcolo)
+            // 🔶 GESTIONE SPECIALE PER GRAFICI IN PAUSA (Test 4/7/8 in ricalcolo)
             if (pausedCharts[metrica]) {
                 // Se il grafico è in pausa, continua il conteggio per il ricalcolo
                 recalculateCounters[metrica]++;
@@ -424,8 +424,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 continue; // Skip aggiornamento grafico se è in pausa
             }
 
-            // 🔶 GESTIONE INIZIALE PER TEST 4 e TEST 8: PRIMO RILEVAMENTO
-            if (testFallito === "Test 4" || testFallito === "Test 8") {
+            // 🔶 GESTIONE INIZIALE PER TEST 4, TEST 7 e TEST 8: PRIMO RILEVAMENTO
+            if (testFallito === "Test 4" || testFallito === "Test 7" || testFallito === "Test 8") {
                 handleTestWithBaslineRecalc(metrica, testFallito, puntiCoinvolti, timestamp, valoreX, valoreMr);
                 continue; // Skip normale aggiornamento grafico
             }
@@ -514,7 +514,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * 🔶 GESTIONE PRIMO RILEVAMENTO TEST 4 e TEST 8: Pausa + Colorazione Retroattiva
+     * 🔶 GESTIONE PRIMO RILEVAMENTO TEST 4, TEST 7 e TEST 8: Pausa + Colorazione Retroattiva
      */
     function handleTestWithBaslineRecalc(metrica, testFallito, puntiCoinvolti, timestamp, valoreX, valoreMr) {
         const chartX = charts[`${metrica}Chart`];
@@ -544,7 +544,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 addLogMessage(metrica, `[ERRORE] Problema comunicazione backend per pausa`, 'log-anomaly');
             });
         
-        addLogMessage(metrica, `[${testFallito}] 🟠 SHIFT RILEVATO - ${puntiCoinvolti.length} punti coinvolti | la media si è spostata`, 'log-anomaly');
+        // Messaggi personalizzati per ogni test basati sulla teoria
+        let shiftMessage = '';
+        if (testFallito === 'Test 4') {
+            shiftMessage = `[${testFallito}] 🟠 RUN RILEVATO - ${puntiCoinvolti.length} punti consecutivi stesso lato | prestazioni processo cambiate`;
+        } else if (testFallito === 'Test 7') {
+            shiftMessage = `[${testFallito}] 🟠 OSCILLAZIONE RILEVATA - ${puntiCoinvolti.length} punti alternanti | tendenza sistematica non normale`;
+        } else if (testFallito === 'Test 8') {
+            shiftMessage = `[${testFallito}] 🟠 TREND RILEVATO - ${puntiCoinvolti.length} punti monotoni | causa eccezionale in atto`;
+        } else {
+            shiftMessage = `[${testFallito}] 🟠 ANOMALIA RILEVATA - ${puntiCoinvolti.length} punti coinvolti | pattern statistico`;
+        }
+        
+        addLogMessage(metrica, shiftMessage, 'log-anomaly');
         addLogMessage(metrica, `[BASELINE] ⏸️ GRAFICO IN PAUSA - Attendo ${RECALCULATE_WAIT_POINTS} misurazioni per ricalcolo baseline...`, 'log-baseline');
         
         console.log(`🔍 DEBUG ${metrica}: PRIMO RILEVAMENTO ${testFallito}, Counter inizializzato a 1/${RECALCULATE_WAIT_POINTS}`);
@@ -793,6 +805,8 @@ document.addEventListener('DOMContentLoaded', () => {
             testStatistics.test1++;
         } else if (stato.includes('Test 4')) {
             testStatistics.test4++;
+        } else if (stato.includes('Test 7')) {
+            testStatistics.test7++;
         } else if (stato.includes('Test 8')) {
             testStatistics.test8++;
         } else if (stato.includes('Test mR')) {
@@ -809,6 +823,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Aggiorna solo gli elementi che esistono realmente nell'HTML
         const test1El = document.getElementById('test1-count');
         const test4El = document.getElementById('test4-count');
+        const test7El = document.getElementById('test7-count');
         const test8El = document.getElementById('test8-count');
         const testmrEl = document.getElementById('testmr-count');
         const testsatEl = document.getElementById('testsat-count');
@@ -816,6 +831,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (test1El) test1El.textContent = testStatistics.test1;
         if (test4El) test4El.textContent = testStatistics.test4;
+        if (test7El) test7El.textContent = testStatistics.test7;
         if (test8El) test8El.textContent = testStatistics.test8;
         if (testmrEl) testmrEl.textContent = testStatistics.testmr;
         if (testsatEl) testsatEl.textContent = testStatistics.testsat;
