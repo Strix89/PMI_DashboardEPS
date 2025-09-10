@@ -31,7 +31,7 @@
    - **Six Sigma Utilities** (`utils/sixsigma_utils.py`)
      - Motore Statistical Process Control con implementazione completa dei test SPC
      - Carte di controllo XmR (Individual & Moving Range)
-     - 8 Test statistici implementati: Test 1, 2, 3, 4, 8, mR, Saturazione
+     - 9 Test statistici implementati: Test 1, 2, 3, 4, 7, 8, mR, Saturazione
      - Sistema di baseline dinamico con ricalcolo automatico
    - **Six Sigma Frontend** (`static/sixsigma_script.js`)
      - Dashboard interattiva real-time con Chart.js
@@ -93,13 +93,14 @@ P_Score = (w_CPU × Score_CPU) + (w_RAM × Score_RAM) + (w_IO × Score_IO)
 
 | Test | Nome | Score | Colore | Descrizione |
 |------|------|-------|--------|-------------|
-| **Test 1** | Violazione Limite X | 0.1 | 🔴 Rosso | Punto fuori UCL/LCL |
-| **Test mR** | Alta Variabilità | 0.2 | 🔴 Rosso | Moving Range > UCL_mR |
-| **Saturazione** | Risorsa Saturata | 0.0 | 🔴 Rosso | Valore ≥ 100% |
-| **Test 4** | Run Test | 0.4 | 🟠 Arancione | 8 punti stesso lato media |
-| **Test 8** | Trend Lineare | 0.4 | 🟠 Arancione | 6 punti crescenti/decrescenti |
-| **Test 2** | Zona A | 0.6 | 🟡 Giallo | 2 di 3 punti oltre 2σ |
-| **Test 3** | Zona B | 0.7 | 🟡 Giallo | 4 di 5 punti oltre 1σ |
+| **Test 1** | Violazione Limiti | 0.1 | 🔴 Rosso | Punto fuori UCL/LCL |
+| **Test mR** | Variabilità Eccessiva | 0.2 | 🔴 Rosso | Moving Range > UCL_mR |
+| **Saturazione** | Risorsa al Limite | 0.0 | 🔴 Rosso | Valore ≥ 100% |
+| **Test 4** | Run Above/Below Centerline | 0.4 | 🟠 Arancione | 7-9 punti consecutivi stesso lato |
+| **Test 7** | Oscillatory Trend | 0.4 | 🟠 Arancione | 14 punti alternanti sopra/sotto |
+| **Test 8** | Linear Trend | 0.4 | 🟠 Arancione | 6 punti monotoni crescenti/decrescenti |
+| **Test 2** | Pre-allarme Shift | 0.6 | 🟡 Giallo | 2 di 3 punti oltre 2σ |
+| **Test 3** | Variabilità Aumentata | 0.7 | 🟡 Giallo | 4 di 5 punti oltre 1σ |
 | **In Controllo** | Processo Stabile | 1.0 | 🟢 Verde | Tutti i test passati |
 
 **Target RPO Default per Tipo Asset:**
@@ -230,7 +231,7 @@ Recupero metriche storiche per analisi SPC
 Elaborazione nuovo punto dati SPC
 - **Payload**: JSON con machine_name e metric value
 - **Response**: Detailed SPC analysis con test results
-- **Process**: 8 test statistici + P-Score calculation
+- **Process**: 9 test statistici + P-Score calculation
 
 #### **GET /sixsigma/test/demo**
 Endpoint di test per validazione implementazione
@@ -545,33 +546,45 @@ def calcola_baseline(dati_storici):
 ```python
 def esegui_test_spc(valore, dati_recenti, baseline):
     """
-    Esegue tutti gli 8 test SPC su nuovo punto dati
+    Esegue tutti i test SPC su nuovo punto dati
     """
     test_results = {}
     
-    # Test 1: Violazione Limite X
+    # Test 1: Violazione Limiti
     test_results['test1'] = (valore > baseline['ucl'] or 
                            valore < baseline['lcl'])
     
-    # Test 2: Zona A (2 di 3 punti oltre 2σ)
+    # Test 2: Pre-allarme Shift (2 di 3 punti oltre 2σ)
     if len(dati_recenti) >= 3:
         zone_a_violations = sum(1 for v in dati_recenti[-3:] 
                                if abs(v - baseline['cl']) > 2*baseline['sigma'])
         test_results['test2'] = zone_a_violations >= 2
     
-    # Test 3: Zona B (4 di 5 punti oltre 1σ)
+    # Test 3: Variabilità Aumentata (4 di 5 punti oltre 1σ)
     if len(dati_recenti) >= 5:
         zone_b_violations = sum(1 for v in dati_recenti[-5:] 
                                if abs(v - baseline['cl']) > baseline['sigma'])
         test_results['test3'] = zone_b_violations >= 4
     
-    # Test 4: Run Test (8 punti stesso lato)
-    if len(dati_recenti) >= 8:
-        above_mean = all(v > baseline['cl'] for v in dati_recenti[-8:])
-        below_mean = all(v < baseline['cl'] for v in dati_recenti[-8:])
-        test_results['test4'] = above_mean or below_mean
+    # Test 4: Run Above/Below Centerline (7-9 punti stesso lato)
+    for run_length in [9, 8, 7]:
+        if len(dati_recenti) >= run_length:
+            above_mean = all(v > baseline['cl'] for v in dati_recenti[-run_length:])
+            below_mean = all(v < baseline['cl'] for v in dati_recenti[-run_length:])
+            if above_mean or below_mean:
+                test_results['test4'] = True
+                break
     
-    # Test 8: Trend (6 punti crescenti/decrescenti)
+    # Test 7: Oscillatory Trend (14 punti alternanti)
+    if len(dati_recenti) >= 14:
+        last_14 = dati_recenti[-14:]
+        pattern1 = all((last_14[i] < last_14[i+1] if i % 2 == 0 else last_14[i] > last_14[i+1])
+                      for i in range(13))
+        pattern2 = all((last_14[i] > last_14[i+1] if i % 2 == 0 else last_14[i] < last_14[i+1])
+                      for i in range(13))
+        test_results['test7'] = pattern1 or pattern2
+    
+    # Test 8: Linear Trend (6 punti monotoni)
     if len(dati_recenti) >= 6:
         increasing = all(dati_recenti[i] < dati_recenti[i+1] 
                         for i in range(-6, -1))
@@ -700,9 +713,10 @@ ALERT_THRESHOLDS = {
 
 # Alert su test pattern specifici
 PATTERN_ALERTS = {
-    'trend_degradation': ['test8'],      # Trend negativo
-    'process_shift': ['test4'],          # Shift sistematico  
-    'high_variability': ['testmr'],      # Variabilità alta
+    'trend_degradation': ['test8'],      # Linear Trend negativo
+    'process_shift': ['test4'],          # Run Above/Below Centerline
+    'oscillatory_behavior': ['test7'],   # Oscillatory Trend sistematico
+    'high_variability': ['testmr'],      # Variabilità eccessiva
     'saturation': ['saturazione']        # Risorse sature
 }
 ```
@@ -784,7 +798,7 @@ def after_request(response):
 
 ### **Sistema Attuale - Capabilities**
 ✅ **Three-Module Analytics Platform**: Availability, Resilience, Six Sigma SPC
-✅ **Real-time SPC Monitoring**: 8 test statistici con XmR control charts  
+✅ **Real-time SPC Monitoring**: 9 test statistici con XmR control charts  
 ✅ **Weighted Scoring Systems**: Configurabile via MongoDB persistence
 ✅ **Interactive Dashboards**: Chart.js con timeline navigation
 ✅ **Asynchronous Processing**: Background jobs per analisi pesanti
@@ -982,7 +996,7 @@ metrics_dashboard/
 
 #### **2. Statistical Process Control Engine**
 - **Carte di Controllo XmR**: Individual & Moving Range charts con limiti dinamici
-- **8 Test SPC Completi**: Implementazione completa dei test statistici industriali
+- **9 Test SPC Completi**: Implementazione completa dei test statistici industriali
 - **Baseline Dinamico**: Calcolo automatico CL, UCL, LCL da dati storici (3 giorni)
 - **Ricalcolo Automatico**: Trigger per ricalcolo baseline quando detectati shift sistematici
 - **Zone Sigma**: Calcolo zone 1σ, 2σ, 3σ per test avanzati
@@ -990,17 +1004,42 @@ metrics_dashboard/
 #### **3. Test Statistici Implementati**
 
 **Test di Priorità Critica (Score 0.0-0.2):**
-- **Test 1 - Violazione Limite X**: Punto fuori UCL/LCL (Score: 0.1)
-- **Test mR - Alta Variabilità**: Moving Range > UCL_mR (Score: 0.2)  
-- **Saturazione Risorsa**: Valore ≥ 100% utilizzo (Score: 0.0)
+- **Test 1 - Violazione Limiti**: Punto fuori UCL/LCL (Score: 0.1)
+- **Test mR - Variabilità Eccessiva**: Moving Range > UCL_mR (Score: 0.2)  
+- **Saturazione - Risorsa al Limite**: Valore ≥ 100% utilizzo (Score: 0.0)
 
-**Test di Shift Sistematico (Score 0.4):**
-- **Test 4 - Run Test**: 8 punti consecutivi stesso lato della media
-- **Test 8 - Trend Lineare**: 6 punti consecutivi crescenti/decrescenti
+**Test di Pattern Sistematico (Score 0.4):**
+- **Test 4 - Run Above/Below Centerline**: 7-9 punti consecutivi stesso lato media
+- **Test 7 - Oscillatory Trend**: 14 punti alternanti sopra/sotto precedente ⭐ **NUOVO**
+- **Test 8 - Linear Trend**: 6 punti monotoni crescenti/decrescenti
 
 **Test di Pre-allarme (Score 0.6-0.7):**
-- **Test 2 - Zona A**: 2 di 3 punti oltre 2σ dalla media
-- **Test 3 - Zona B**: 4 di 5 punti oltre 1σ dalla media
+- **Test 2 - Pre-allarme Shift**: 2 di 3 punti oltre 2σ dalla media
+- **Test 3 - Variabilità Aumentata**: 4 di 5 punti oltre 1σ dalla media
+
+#### **5. Teoria Test 7 - Oscillatory Trend** ⭐ **NUOVO**
+
+Il **Test 7 - Oscillatory Trend Test** rileva comportamenti oscillatori sistematici nel processo che non sono attribuibili a variazione normale. Questo test ricerca 14 successive osservazioni che si alternano sopra e sotto rispetto alla precedente.
+
+**Pattern Rilevati:**
+```
+Pattern 1 (Crescente-Decrescente):
+p1 < p2 > p3 < p4 > p5 < p6 > p7 < p8 > p9 < p10 > p11 < p12 > p13 < p14
+
+Pattern 2 (Decrescente-Crescente):  
+p1 > p2 < p3 > p4 < p5 > p6 < p7 > p8 < p9 > p10 < p11 > p12 < p13 > p14
+```
+
+**Significato Statistico:**
+- **Probabilità**: La probabilità che 14 punti si alternino casualmente è estremamente bassa (< 0.01%)
+- **Causa**: Indica una tendenza sistematica nel processo non attribuibile a comportamento normale
+- **Impatto**: Suggerisce instabilità ciclica o interferenze periodiche nel sistema
+
+**Comportamento Sistema:**
+- **Rilevamento**: Grafico si blocca, 14 punti coinvolti vengono colorati
+- **Ricalcolo Baseline**: Attende 20 nuove misurazioni prima di ricalcolare limiti
+- **Score**: 0.4 (stesso livello di Test 4 e Test 8)
+- **Colore**: 🟠 Arancione (warning level)
 
 #### **4. Dashboard SPC Real-time**
 - **Grafici XmR Separati**: CPU, RAM, I/O Wait con Chart.js interattivi
