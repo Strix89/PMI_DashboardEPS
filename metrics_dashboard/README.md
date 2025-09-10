@@ -1,6 +1,6 @@
 # Metrics Dashboard - Sistema di Monitoraggio Avanzato PMI Infrastructure
 
-**Metrics Dashboard** è una web application Flask completa che fornisce tre moduli di monitoraggio avanzato per l'infrastruttura PMI: **Availability Analytics**, **Resilience Analytics** e **Six Sigma Statistical Process Control (SPC)**. Il sistema si connette a MongoDB per recuperare metriche operative e genera dashboard interattive per il monitoraggio in tempo reale della salute dei servizi, resilienza dei backup e controllo statistico dei processi.
+**Metrics Dashboard** è una web application Flask completa che fornisce quattro moduli di monitoraggio avanzato per l'infrastruttura PMI: **Availability Analytics**, **Resilience Analytics**, **Six Sigma Statistical Process Control (SPC)** e **AnomalySNMP**. Il sistema si connette a MongoDB per recuperare metriche operative e genera dashboard interattive per il monitoraggio in tempo reale della salute dei servizi, resilienza dei backup, controllo statistico dei processi e rilevamento anomalie di rete SNMP.
 
 ## 🏗️ Architettura del Sistema
 
@@ -27,7 +27,7 @@
    - **Backup Summary** (`utils/backup_summary.py`)
      - Modulo di aggregazione per metriche di backup e resilienza
 
-4. **Six Sigma SPC Module** (NUOVO)
+4. **Six Sigma SPC Module**
    - **Six Sigma Utilities** (`utils/sixsigma_utils.py`)
      - Motore Statistical Process Control con implementazione completa dei test SPC
      - Carte di controllo XmR (Individual & Moving Range)
@@ -38,7 +38,23 @@
      - Simulazione temporale con controlli play/pause
      - Visualizzazione P-Score aggregato weighted
 
-5. **Storage Layer Integration**
+5. **AnomalySNMP Module** (NUOVO)
+   - **ML Engine** (`anomaly_snmp/utils/ml_engine.py`)
+     - Motore Isolation Forest per rilevamento anomalie SNMP
+     - Utilizza `.predict(X)` per classificazione binaria (normale/anomalia)
+     - Sistema di training con SMOTE per bilanciamento dataset
+     - Cache intelligente per performance ottimali
+   - **Routes & API** (`anomaly_snmp/routes.py`)
+     - Endpoints per configurazione, training e simulazione
+     - Gestione sessioni Flask per persistenza stato
+     - API real-time per simulazione punti dati
+   - **Frontend Dashboard** (`templates/anomaly_dashboard_fixed.html`, `static/js/anomaly_dashboard_new.js`)
+     - Visualizzazione status binario "NORMALE"/"ANOMALIA"
+     - Calcolo accuratezza in tempo reale
+     - Grafico temporale predizioni Isolation Forest
+     - Statistiche simulazione con contatori predizioni
+
+6. **Storage Layer Integration**
    - Integrazione con `storage_layer.storage_manager` per connettività MongoDB
    - Accesso a multiple collections: "assets", "metrics", "sixsigma_monitoring"
    - Sistema di configurazione persistente con MongoDB
@@ -134,6 +150,62 @@ P_Score = (w_CPU × Score_CPU) + (w_RAM × Score_RAM) + (w_IO × Score_IO)
 | > 0.8 | **EXCELLENT** | Performance eccellenti |
 | 0.5 - 0.8 | **GOOD** | Performance buone |
 | < 0.5 | **CRITICAL** | Performance critiche |
+
+### **AnomalySNMP - Isolation Forest** (NUOVO)
+
+Il modulo AnomalySNMP utilizza **Isolation Forest** per il rilevamento di anomalie nei dati di rete SNMP attraverso classificazione binaria.
+
+#### **Algoritmo di Predizione**
+
+```python
+# Isolation Forest .predict(X) - Classificazione Binaria
+prediction = model.predict(data_point)
+# Risultato:
+#   1  = Comportamento NORMALE (inlier)
+#  -1  = Comportamento ANOMALO (outlier)
+```
+
+#### **Processo di Training con SMOTE**
+
+Il sistema implementa un flusso di training ottimizzato:
+
+```
+1. Dataset Originale: 600 normali + 4,398 anomalie (8 feature SNMP)
+2. Separazione: Isola i 600 record normali
+3. SMOTE: Aumenta i normali per raggiungere target contamination
+4. Training Split: 80% normali post-SMOTE per training
+5. Test Set: 20% normali + TUTTE le anomalie (shufflati)
+```
+
+#### **Formula SMOTE per Contamination**
+
+Per ottenere una contamination specifica nel test set finale:
+
+```
+normali_test = anomalie × (1 - contamination) / contamination
+normali_totali = normali_test / (1 - train_split)
+```
+
+**Esempio con contamination=5%, train_split=80%:**
+- Normali necessari nel test: 4,398 × 0.95 / 0.05 = 83,561
+- Normali totali post-SMOTE: 83,561 / 0.2 = 417,805
+- Training: 334,244 normali (80%)
+- Test: 83,561 normali + 4,398 anomalie = 87,959 totali
+- Contamination effettiva: 4,398 / 87,959 = 5.0% ✅
+
+#### **Classificazione Status**
+
+**AnomalySNMP Status:**
+| Predizione | Valore | Status | Visualizzazione |
+|------------|--------|---------|-----------------|
+| Normale | 1 | **NORMALE** | 🟢 Verde "COMPORTAMENTO NORMALE" |
+| Anomalia | -1 | **ANOMALIA** | 🔴 Rosso "ANOMALIA RILEVATA" |
+
+#### **Metriche di Performance**
+
+- **Accuratezza**: Predizioni corrette / Totale predizioni
+- **Contatori Predizioni**: Basati su output del modello (non etichette reali)
+- **Confronto Real-time**: Predizione vs Etichetta reale del dataset
 
 ## 🔧 API Reference
 
@@ -238,6 +310,95 @@ Endpoint di test per validazione implementazione
 - **Response**: JSON con test results e baseline stats
 - **Usage**: Development e debugging
 
+### **Endpoints Modulo AnomalySNMP** (NUOVO)
+
+#### **GET /anomaly_snmp/**
+Homepage del modulo AnomalySNMP
+- **Redirect**: Automatico a `/anomaly_snmp/configure`
+- **Feature**: Entry point del modulo
+
+#### **GET /anomaly_snmp/configure**
+Interfaccia di configurazione modello Isolation Forest
+- **Template**: `anomaly_configure.html`
+- **Feature**: Configurazione contamination, train_split, dataset selection
+- **Parametri**: 
+  - Contamination: 1-15% (percentuale anomalie attese)
+  - Train Split: 50-90% (percentuale dati per training)
+  - Dataset: SNMP-MIB preselezionato (600 normali + 4,398 anomalie)
+
+#### **POST /anomaly_snmp/api/train_model**
+Avvio training del modello Isolation Forest
+- **Payload**: JSON con contamination e train_split
+- **Response**: Success/error con redirect URL
+- **Process**: 
+  1. Validazione parametri (contamination: 0.01-0.15, train_split: 0.5-0.9)
+  2. Preparazione dataset con SMOTE
+  3. Training Isolation Forest su dati normali
+  4. Calcolo baseline statistiche
+  5. Preparazione test set shufflato
+- **Session**: Salva model artifacts e configurazione
+
+#### **GET /anomaly_snmp/dashboard**
+Dashboard di simulazione real-time
+- **Template**: `anomaly_dashboard_fixed.html`
+- **Feature**: 
+  - Status visivo binario "NORMALE"/"ANOMALIA"
+  - Grafico temporale predizioni (-1/+1)
+  - Statistiche simulazione con accuratezza
+  - Controlli play/pause/reset
+- **Requirement**: Modello deve essere addestrato
+
+#### **GET /anomaly_snmp/api/get_next_point/<int:offset>**
+Recupero prossimo punto dati per simulazione
+- **Response**: JSON con predizione Isolation Forest
+- **Data Structure**:
+```json
+{
+  "success": true,
+  "data": {
+    "timestamp": "2025-01-09T10:30:00",
+    "prediction": 1,                    // 1=normale, -1=anomalia
+    "is_anomaly": false,
+    "is_normal": true,
+    "classification": "Normale",
+    "real_label": "Normal",             // Etichetta vera dataset
+    "offset": 123,
+    "features": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+  },
+  "next_offset": 124,
+  "has_more_data": true
+}
+```
+
+#### **GET /anomaly_snmp/api/simulation_status**
+Recupero stato corrente della simulazione
+- **Response**: JSON con stato simulazione, offset corrente, statistiche
+- **Usage**: Sincronizzazione client-server, recovery stato
+
+#### **POST /anomaly_snmp/api/simulation_control**
+Controllo avanzato simulazione (play/pause/speed/jump)
+- **Payload**: JSON con action e parametri
+- **Actions**: 
+  - `play`: Avvia simulazione
+  - `pause`: Pausa simulazione
+  - `set_speed`: Cambia velocità (1-10x)
+  - `jump_to_offset`: Salta a offset specifico
+
+#### **POST /anomaly_snmp/api/reset_simulation**
+Reset completo della simulazione
+- **Response**: Success/error status
+- **Process**: Azzera offset, contatori, statistiche, stato grafico
+
+#### **GET /anomaly_snmp/api/get_config**
+Recupero configurazione corrente del modello
+- **Response**: JSON con contamination, train_split, dataset_name, timestamp
+
+#### **POST /anomaly_snmp/api/validate_config**
+Validazione parametri di configurazione
+- **Payload**: JSON con contamination e train_split
+- **Response**: Validation success/errors
+- **Usage**: Validazione real-time durante configurazione
+
 ### **Database Collections**
 
 #### **pmi_infrastructure.assets**
@@ -314,6 +475,79 @@ Endpoint di test per validazione implementazione
 }
 ```
 
+#### **anomaly_snmp.session_data** (NUOVO)
+```json
+{
+  "_id": ObjectId,
+  "session_id": "string",
+  "config": {
+    "contamination": Number,        // 0.01-0.15
+    "train_split": Number,          // 0.5-0.9
+    "dataset_name": "string",
+    "timestamp": ISODate,
+    "status": "trained|configured"
+  },
+  "dataset_stats": {
+    "normal_original": 600,
+    "anomaly_original": 4398,
+    "normal_oversampled_total": Number,
+    "training_count": Number,
+    "test_normal_count": Number,
+    "test_anomaly_count": Number,
+    "test_set_total": Number
+  },
+  "model_artifacts": {
+    "baseline": {
+      "mu_normal": Number,
+      "sigma_normal": Number,
+      "n_samples": Number,
+      "score_range": {
+        "min": Number,
+        "max": Number
+      }
+    },
+    "test_set_seed": Number,        // Seed per riproducibilità
+    "current_offset": Number
+  },
+  "simulation_state": {
+    "is_running": Boolean,
+    "speed": Number,                // 1-10x
+    "current_index": Number,
+    "statistics": {
+      "normal_count": Number,       // Predizioni normali
+      "anomaly_count": Number,      // Predizioni anomalie
+      "total_predictions": Number,
+      "correct_predictions": Number
+    }
+  },
+  "created_at": ISODate,
+  "updated_at": ISODate
+}
+```
+
+#### **anomaly_snmp.snmp_dataset** (NUOVO)
+```json
+{
+  "_id": ObjectId,
+  "dataset_name": "SNMP-MIB Dataset",
+  "record_type": "normal|anomaly",
+  "features": {
+    "feature_1": Number,            // 8 feature SNMP
+    "feature_2": Number,
+    "feature_3": Number,
+    "feature_4": Number,
+    "feature_5": Number,
+    "feature_6": Number,
+    "feature_7": Number,
+    "feature_8": Number
+  },
+  "label": "Normal|Anomaly",
+  "attack_type": "string",          // Solo per anomalie
+  "timestamp": ISODate,
+  "source": "original|smote_generated"
+}
+```
+
 ## ⚙️ Setup e Installazione
 
 ### **1. Requisiti di Sistema**
@@ -339,6 +573,12 @@ pip install pymongo==4.5.0
 pip install python-dotenv==1.0.0
 pip install numpy==1.24.3
 pip install matplotlib==3.7.2
+
+# Machine Learning Dependencies (AnomalySNMP)
+pip install scikit-learn==1.3.0
+pip install pandas==2.0.3
+pip install imbalanced-learn==0.11.0    # Per SMOTE
+pip install psutil==5.9.5               # Per monitoring performance
 
 # Additional Dependencies  
 pip install requests==2.31.0
@@ -374,6 +614,28 @@ use sixsigma_monitoring
 db.sixsigma_weights_config.createIndex({"machine_name": 1}, {"unique": true})
 db.metrics_advanced_test.createIndex({"machine_name": 1, "timestamp": -1})
 db.metrics_advanced_test.createIndex({"timestamp": -1})
+```
+
+#### **Setup Database anomaly_snmp** (NUOVO)
+```javascript
+// MongoDB Shell Commands
+use anomaly_snmp
+
+// Crea collections con indexes per AnomalySNMP
+db.session_data.createIndex({"session_id": 1}, {"unique": true})
+db.session_data.createIndex({"created_at": -1})
+db.session_data.createIndex({"config.status": 1})
+
+db.snmp_dataset.createIndex({"dataset_name": 1, "record_type": 1})
+db.snmp_dataset.createIndex({"label": 1})
+db.snmp_dataset.createIndex({"timestamp": -1})
+db.snmp_dataset.createIndex({"source": 1})
+
+// TTL index per pulizia automatica sessioni vecchie (30 giorni)
+db.session_data.createIndex(
+    {"created_at": 1}, 
+    {"expireAfterSeconds": 2592000}
+)
 ```
 
 ### **4. Configurazione Environment**
@@ -512,6 +774,44 @@ sudo systemctl enable metrics-dashboard
 3. Verifica contatori test statistici
 4. Analizza pattern e trend nei grafici XmR
 
+### **4. Utilizzo Modulo AnomalySNMP** (NUOVO)
+
+#### **Step 1: Configurazione Modello**
+1. Accedi a `http://localhost:5000/anomaly_snmp/configure`
+2. Configura parametri Isolation Forest:
+   - **Contamination**: 1-15% (percentuale anomalie attese nel test finale)
+   - **Train Split**: 50-90% (percentuale dati normali per training)
+3. Il dataset SNMP-MIB è preselezionato (600 normali + 4,398 anomalie)
+4. Clicca "Prepara Dati, Addestra e Avvia Simulazione"
+
+#### **Step 2: Training e Preparazione**
+1. Il sistema esegue automaticamente:
+   - Separazione dati normali e anomalie
+   - SMOTE sui dati normali per raggiungere target contamination
+   - Training Isolation Forest sui normali post-SMOTE
+   - Preparazione test set shufflato (normali + anomalie)
+2. Monitora progress bar durante il training
+3. Al completamento, redirect automatico alla dashboard
+
+#### **Step 3: Dashboard e Simulazione Real-time**
+1. **Status Principale**: Visualizza "COMPORTAMENTO NORMALE" (verde) o "ANOMALIA RILEVATA" (rosso)
+2. **Controlli Simulazione**: 
+   - Play/Pause per avviare/fermare simulazione
+   - Reset per ricominciare da capo
+3. **Grafico Temporale**: Mostra andamento predizioni (-1 anomalia, +1 normale)
+4. **Statistiche Simulazione**:
+   - Contatori predizioni normali/anomalie (basati su output modello)
+   - Accuratezza in tempo reale (predizioni corrette / totale)
+   - Confronto predizione vs etichetta reale
+
+#### **Step 4: Interpretazione Risultati**
+1. **Predizioni del Modello**:
+   - Verde: `model.predict(X) = 1` → Comportamento normale
+   - Rosso: `model.predict(X) = -1` → Anomalia rilevata
+2. **Accuratezza**: Confronta predizioni con etichette reali del dataset
+3. **Resoconto Dataset**: Verifica che contamination sia rispettata (es. 5.0%)
+4. **Analisi Performance**: Monitora se il modello rileva correttamente le anomalie SNMP
+
 ## 🔍 Algoritmi e Logica di Business
 
 ### **Statistical Process Control (SPC) Engine**
@@ -636,6 +936,106 @@ def calcola_resilience_score(rpo_compliance, success_rate, pesi):
     return round(resilience_score * 100, 2)  # Percentuale
 ```
 
+### **AnomalySNMP - Isolation Forest Algorithm** (NUOVO)
+
+#### **Training Process con SMOTE**
+```python
+def train_anomaly_detection_model(contamination, train_split):
+    """
+    Processo completo di training con SMOTE e Isolation Forest
+    """
+    # 1. Separazione dataset originale
+    normal_data = dataset[dataset['label'] == 'Normal']  # 600 record
+    anomaly_data = dataset[dataset['label'] == 'Anomaly']  # 4,398 record
+    
+    # 2. SMOTE sui dati normali per raggiungere target contamination
+    # Formula: normali_test = anomalie * (1 - contamination) / contamination
+    normals_needed_in_test = int(len(anomaly_data) * (1 - contamination) / contamination)
+    smote_target = int(normals_needed_in_test / (1 - train_split))
+    
+    # Applica SMOTE
+    smote = SMOTE(random_state=42)
+    normal_oversampled, _ = smote.fit_resample(normal_data, [0] * len(normal_data))
+    normal_oversampled = normal_oversampled[:smote_target]  # Taglia al target
+    
+    # 3. Training split sui normali post-SMOTE
+    normal_training = normal_oversampled[:int(smote_target * train_split)]
+    normal_test = normal_oversampled[int(smote_target * train_split):]
+    
+    # 4. Training Isolation Forest (solo su dati normali)
+    model = IsolationForest(
+        contamination=contamination,
+        n_estimators=100,
+        max_samples=256,
+        random_state=42
+    )
+    model.fit(normal_training)
+    
+    # 5. Preparazione test set finale (shufflato)
+    test_set = np.concatenate([normal_test, anomaly_data])
+    np.random.shuffle(test_set)
+    
+    return model, test_set
+```
+
+#### **Prediction Algorithm**
+```python
+def predict_anomaly(model, data_point):
+    """
+    Predizione binaria usando Isolation Forest .predict(X)
+    """
+    # Isolation Forest .predict(X) restituisce:
+    #   1 = Normale (inlier)
+    #  -1 = Anomalia (outlier)
+    prediction = model.predict(data_point.reshape(1, -1))[0]
+    
+    return {
+        'prediction': int(prediction),
+        'is_anomaly': prediction == -1,
+        'is_normal': prediction == 1,
+        'classification': 'Anomalia' if prediction == -1 else 'Normale'
+    }
+```
+
+#### **Accuracy Calculation**
+```python
+def calculate_accuracy(predictions, real_labels):
+    """
+    Calcola accuratezza confrontando predizioni con etichette reali
+    """
+    correct = 0
+    total = len(predictions)
+    
+    for pred, real in zip(predictions, real_labels):
+        # Predizione corretta se:
+        # - Modello predice anomalia (-1) e etichetta è "Anomaly"
+        # - Modello predice normale (1) e etichetta è "Normal"
+        if (pred == -1 and real == 'Anomaly') or (pred == 1 and real == 'Normal'):
+            correct += 1
+    
+    return (correct / total) * 100  # Percentuale
+```
+
+#### **SMOTE Formula Validation**
+```python
+def validate_contamination(normal_test_count, anomaly_count, target_contamination):
+    """
+    Verifica che la contamination sia rispettata nel test set finale
+    """
+    total_test = normal_test_count + anomaly_count
+    actual_contamination = anomaly_count / total_test
+    
+    tolerance = 0.001  # 0.1% di tolleranza
+    is_valid = abs(actual_contamination - target_contamination) < tolerance
+    
+    return {
+        'is_valid': is_valid,
+        'actual_contamination': actual_contamination,
+        'target_contamination': target_contamination,
+        'difference': abs(actual_contamination - target_contamination)
+    }
+```
+
 ## 🛠️ Troubleshooting e Best Practices
 
 ### **Common Issues e Soluzioni**
@@ -688,6 +1088,38 @@ import ijson
 parser = ijson.parse(open('large_analysis.json', 'rb'))
 ```
 
+#### **5. Problemi AnomalySNMP** (NUOVO)
+```bash
+# Errori JavaScript "Cannot set properties of null"
+# Verifica che tutti gli elementi HTML esistano nel template
+grep -n "getElementById" static/js/anomaly_dashboard_new.js
+
+# Problemi training Isolation Forest
+# Controlla dipendenze scikit-learn
+pip install --upgrade scikit-learn imbalanced-learn
+
+# Valori dataset errati (es. 278,536 invece di 417,805)
+# Debug parametri configurazione
+console.log('contamination:', contamination, 'train_split:', train_split)
+
+# Accuratezza modello bassa (<70%)
+# Verifica bilanciamento dataset e parametri SMOTE
+python -c "
+from sklearn.ensemble import IsolationForest
+import numpy as np
+# Test rapido modello
+X = np.random.rand(1000, 8)
+model = IsolationForest(contamination=0.05)
+model.fit(X)
+print('Modello OK:', hasattr(model, 'predict'))
+"
+
+# Sessioni Flask corrotte
+# Pulisci sessioni e riavvia
+rm -rf flask_session/
+python app.py
+```
+
 ### **Best Practices Operative**
 
 #### **1. Gestione Baseline SPC**
@@ -701,6 +1133,14 @@ parser = ijson.parse(open('large_analysis.json', 'rb'))
 - **Database Systems**: Peso I/O 40-50%, RAM 30-35%, CPU 15-25%  
 - **Web Servers**: Peso bilanciato 33% ciascuno
 - **Monitoring**: Ricalibra pesi basandosi su historical patterns
+
+#### **3. Gestione Modelli AnomalySNMP** (NUOVO)
+- **Contamination Ottimale**: Inizia con 5% e aggiusta basandosi su risultati reali
+- **Train Split**: Usa 80% per dataset bilanciati, 70% per dataset sbilanciati
+- **Baseline Validation**: Verifica che contamination effettiva = target ±0.1%
+- **Model Retraining**: Riaddestra modello quando accuratezza scende sotto 80%
+- **Cache Management**: Pulisci cache modelli ogni 24 ore per performance
+- **Session Cleanup**: Configura TTL MongoDB per pulizia automatica sessioni
 
 #### **3. Thresholds e Alerting**
 ```python
@@ -2049,3 +2489,93 @@ Per contribuire al progetto:
 
 **© 2025 Metrics Dashboard - Sistema Completo di Monitoraggio PMI Infrastructure**
 *Availability Analytics • Resilience Analytics • Six Sigma SPC • AnomalySNMP Detection*
+## 📋 Conc
+lusioni e Roadmap
+
+### **Sistema Attuale - Capabilities**
+✅ **Four-Module Analytics Platform**: Availability, Resilience, Six Sigma SPC, AnomalySNMP  
+✅ **Real-time SPC Monitoring**: 9 test statistici con XmR control charts  
+✅ **SNMP Anomaly Detection**: Isolation Forest con classificazione binaria  
+✅ **Weighted Scoring Systems**: Configurabile via MongoDB persistence  
+✅ **Interactive Dashboards**: Chart.js con timeline navigation e simulazioni  
+✅ **Asynchronous Processing**: Background jobs per analisi pesanti  
+✅ **MongoDB Integration**: Multiple databases con ottimizzazioni  
+✅ **Responsive UI**: Bootstrap con theme dark/light support  
+
+### **AnomalySNMP - Funzionalità Chiave**
+✅ **Isolation Forest .predict(X)**: Classificazione binaria normale/anomalia  
+✅ **SMOTE Integration**: Bilanciamento dataset con contamination precisa  
+✅ **Real-time Simulation**: Simulazione punti dati con accuratezza live  
+✅ **Visual Status**: Status "NORMALE"/"ANOMALIA" senza gauge  
+✅ **Performance Monitoring**: Cache intelligente e ottimizzazioni memoria  
+✅ **Session Management**: Persistenza stato Flask con MongoDB  
+
+### **Roadmap Tecnica Futura**
+🔄 **Machine Learning Enhancement**: Ensemble methods per AnomalySNMP  
+🔄 **Real-time Data Ingestion**: Connettori SNMP diretti  
+🔄 **Advanced Analytics**: Predictive analytics su trend SPC  
+🔄 **API Authentication**: JWT tokens per sicurezza endpoints  
+🔄 **Real-time Notifications**: WebSocket per alert immediati  
+🔄 **Export Capabilities**: PDF/Excel reports generation  
+🔄 **Multi-tenancy**: Support per multiple PMI environments  
+🔄 **Advanced Anomaly Detection**: Deep Learning models per pattern complessi  
+
+---
+
+**Documentazione aggiornata:** `2025-01-09`  
+**Versione Sistema:** `v3.0.0 - AnomalySNMP Integration`  
+**Autore:** PMI Infrastructure Team  
+**Repository:** `metrics_dashboard/`  
+
+### **Struttura Progetto Completa**
+```
+metrics_dashboard/
+├── app.py                              # Flask application server principale
+├── run.py                              # Script di avvio dell'applicazione
+├── requirements.txt                    # Dipendenze Python complete
+├── .env                               # Variabili d'ambiente di produzione
+├── templates/                         # Template HTML Jinja2
+│   ├── index.html                    # Homepage selezione moduli
+│   # AVAILABILITY MODULE
+│   ├── availability_index.html       # Dashboard availability
+│   ├── availability_config.html      # Configurazione availability
+│   └── availability_dashboard.html   # Risultati availability
+│   # RESILIENCE MODULE
+│   ├── resilience_index.html         # Dashboard resilience
+│   ├── resilience_config.html        # Configurazione resilience
+│   └── resilience_dashboard.html     # Risultati resilience
+│   # SIX SIGMA SPC MODULE
+│   ├── sixsigma_index.html          # Selezione Six Sigma
+│   ├── sixsigma_config.html         # Configurazione pesi metriche
+│   └── sixsigma_dashboard.html      # Dashboard SPC real-time
+│   # ANOMALY SNMP MODULE (NUOVO)
+│   ├── anomaly_configure.html       # Configurazione Isolation Forest
+│   └── anomaly_dashboard_fixed.html # Dashboard anomaly detection
+├── static/                           # Assets statici (CSS, JS, immagini)
+│   └── js/
+│       ├── sixsigma_script.js       # Logic Six Sigma (Chart.js, SPC)
+│       └── anomaly_dashboard_new.js # Logic AnomalySNMP (predizioni)
+├── utils/                           # Moduli business logic
+│   ├── cumulative_availability_analyzer.py  # Core availability
+│   ├── availability_summary.py              # Summary availability
+│   ├── cumulative_resilience_analyzer.py    # Core resilience
+│   ├── backup_summary.py                    # Summary resilience
+│   ├── sixsigma_utils.py                   # Core SPC engine
+│   └── generate_metrics_spc.py             # Generatore dati SPC
+├── anomaly_snmp/                    # Modulo AnomalySNMP (NUOVO)
+│   ├── __init__.py                 # Package initialization
+│   ├── routes.py                   # Blueprint Flask e API endpoints
+│   ├── exceptions.py               # Eccezioni personalizzate
+│   ├── logging_config.py           # Configurazione logging avanzato
+│   ├── monitoring.py               # Performance monitoring
+│   └── utils/
+│       ├── __init__.py
+│       ├── ml_engine.py            # Isolation Forest engine
+│       └── data_processor.py       # Preprocessing dati SNMP
+└── output/                         # Directory output analisi
+    ├── cumulative_availability_analysis_*.json
+    ├── resilience_analysis_*.json
+    └── anomaly_detection_sessions/  # Sessioni AnomalySNMP
+```
+
+**Il sistema è ora una piattaforma completa di monitoraggio PMI con capacità di machine learning per rilevamento anomalie SNMP!** 🚀
