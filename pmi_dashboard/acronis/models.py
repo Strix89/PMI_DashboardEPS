@@ -482,20 +482,43 @@ def transform_agent_data(raw_data: Dict[str, Any]) -> Dict[str, Any]:
         transformed = {
             "id_agent": raw_data.get("id", ""),
             "hostname": raw_data.get("hostname", "Unknown"),
-            "id_tenant": raw_data.get("tenant_id", ""),
+            "id_tenant": raw_data.get("tenant", {}).get("id", "") if raw_data.get("tenant") else raw_data.get("tenant_id", ""),
             "online": raw_data.get("online", False),
             "uptime": "",
             "uptime_timestamp": 0.0,
             "platform": raw_data.get("platform", {}),
         }
 
-        # Handle uptime formatting
-        if "uptime" in raw_data and raw_data["uptime"] is not None:
-            if isinstance(raw_data["uptime"], (int, float)):
-                transformed["uptime_timestamp"] = float(raw_data["uptime"])
-                transformed["uptime"] = format_uptime(raw_data["uptime"])
-            else:
-                transformed["uptime"] = str(raw_data["uptime"])
+        # Handle uptime formatting (based on working implementation)
+        try:
+            # Try to get uptime from meta.atp.components (like in working code)
+            components = raw_data.get('meta', {}).get('atp', {}).get('components', [])
+            if components:
+                for component in components:
+                    uptime_str = component.get('update_time')
+                    if uptime_str:
+                        from datetime import datetime
+                        uptime_dt = datetime.strptime(uptime_str, "%a, %d %b %Y %H:%M:%S %z")
+                        now = datetime.now(uptime_dt.tzinfo)
+                        delta = now - uptime_dt
+                        days = delta.days
+                        hours, remainder = divmod(delta.seconds, 3600)
+                        minutes = remainder // 60
+                        
+                        transformed["uptime"] = f"{days} days, {hours} hours, {minutes} minutes"
+                        transformed["uptime_timestamp"] = uptime_dt.timestamp()
+                        break
+            
+            # Fallback to simple uptime if available
+            if not transformed["uptime"] and "uptime" in raw_data and raw_data["uptime"] is not None:
+                if isinstance(raw_data["uptime"], (int, float)):
+                    transformed["uptime_timestamp"] = float(raw_data["uptime"])
+                    transformed["uptime"] = format_uptime(raw_data["uptime"])
+                else:
+                    transformed["uptime"] = str(raw_data["uptime"])
+        except Exception as e:
+            logger.debug(f"Could not calculate uptime: {e}")
+            transformed["uptime"] = "Unknown"
 
         return transformed
 

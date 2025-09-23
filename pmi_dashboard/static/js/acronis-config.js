@@ -52,9 +52,9 @@ class AcronisConfigManager {
 
         // Listen for successful configuration operations
         document.addEventListener('acronisConfigUpdated', () => {
-            // Notify the main Acronis manager to refresh
+            // Notify the main Acronis manager to refresh silently
             if (window.acronisManager) {
-                window.acronisManager.checkInitialConfiguration();
+                window.acronisManager.checkInitialConfiguration(true);
             }
         });
     }
@@ -96,9 +96,9 @@ class AcronisConfigManager {
         try {
             const response = await this.makeRequest('GET', '/config');
 
-            if (response && response.success && response.config) {
-                this.currentConfig = response.config;
-                this.populateForm(response.config);
+            if (response && response.success && response.data && response.data.configured) {
+                this.currentConfig = response.data;
+                this.populateForm(response.data);
                 return true;
             } else {
                 this.currentConfig = null;
@@ -194,7 +194,10 @@ class AcronisConfigManager {
                 window.notificationSystem.remove('acronis-config-save');
             }
 
+            console.log('Save result:', result);
+
             if (result && result.success) {
+                console.log('Configuration saved successfully, proceeding with dashboard switch...');
                 const action = isUpdate ? 'updated' : 'saved';
                 this.showNotification(
                     `Acronis configuration ${action} successfully!`,
@@ -212,11 +215,23 @@ class AcronisConfigManager {
 
                 // Switch to dashboard view after successful save
                 if (window.acronisManager) {
+                    console.log('acronisManager found, setting timeout...');
                     setTimeout(() => {
-                        window.acronisManager.showDashboardView();
-                    }, 1500);
+                        console.log('Timeout executed - Switching to dashboard after config save...');
+                        // Ensure tab is active for data loading
+                        window.acronisManager.isActive = true;
+                        console.log('Set isActive=true, calling showView...');
+                        window.acronisManager.showView('dashboard');
+                        // Force data loading regardless of tab state
+                        console.log('Force loading initial data...');
+                        window.acronisManager.loadInitialData();
+                        window.acronisManager.startAutoRefresh();
+                    }, 1000);
+                } else {
+                    console.error('acronisManager not found!');
                 }
             } else {
+                console.error('Save failed:', result);
                 throw new Error(result.error || 'Failed to save configuration');
             }
 
@@ -240,12 +255,12 @@ class AcronisConfigManager {
      */
     getFormData() {
         let baseUrl = document.getElementById('acronis-base-url').value.trim();
-        
+
         // Ensure base URL ends with a forward slash
         if (baseUrl && !baseUrl.endsWith('/')) {
             baseUrl += '/';
         }
-        
+
         return {
             base_url: baseUrl,
             client_id: document.getElementById('acronis-client-id').value.trim(),
@@ -570,7 +585,8 @@ class AcronisConfigManager {
         // If there's an existing configuration, go back to dashboard
         if (this.currentConfig || window.acronisManager) {
             if (window.acronisManager) {
-                window.acronisManager.checkInitialConfiguration();
+                // Check configuration silently to avoid loading notifications
+                window.acronisManager.checkInitialConfiguration(true);
             }
         }
     }
@@ -868,7 +884,7 @@ class AcronisConfigManager {
     focusOnCredentialFields() {
         const clientIdField = document.getElementById('acronis-client-id');
         const clientSecretField = document.getElementById('acronis-client-secret');
-        
+
         if (clientIdField) {
             clientIdField.focus();
             clientIdField.select();

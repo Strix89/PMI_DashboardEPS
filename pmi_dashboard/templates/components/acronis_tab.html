@@ -130,95 +130,125 @@
             </div>
         </div>
 
-        <!-- Statistics Cards -->
+        <!-- Statistics Cards - Compact Layout -->
         <div id="acronis-statistics" class="statistics-section">
-            <div class="statistics-grid">
-                <div class="stat-card">
-                    <div class="stat-icon">
+            <div class="statistics-grid-compact">
+                <div class="stat-card-compact primary">
+                    <div class="stat-icon-compact">
                         <i class="fas fa-shield-alt"></i>
                     </div>
-                    <div class="stat-content">
-                        <div class="stat-value" id="total-backups">--</div>
-                        <div class="stat-label">Total Backups</div>
+                    <div class="stat-content-compact">
+                        <div class="stat-value-compact" id="total-backups">--</div>
+                        <div class="stat-label-compact">Total Backups</div>
                     </div>
                 </div>
 
-                <div class="stat-card success">
-                    <div class="stat-icon">
+                <div class="stat-card-compact success">
+                    <div class="stat-icon-compact">
                         <i class="fas fa-check-circle"></i>
                     </div>
-                    <div class="stat-content">
-                        <div class="stat-value" id="successful-backups">--</div>
-                        <div class="stat-label">Successful</div>
+                    <div class="stat-content-compact">
+                        <div class="stat-value-compact" id="successful-backups">--</div>
+                        <div class="stat-label-compact">Successful</div>
                     </div>
                 </div>
 
-                <div class="stat-card error">
-                    <div class="stat-icon">
+                <div class="stat-card-compact error">
+                    <div class="stat-icon-compact">
                         <i class="fas fa-exclamation-circle"></i>
                     </div>
-                    <div class="stat-content">
-                        <div class="stat-value" id="failed-backups">--</div>
-                        <div class="stat-label">Failed</div>
+                    <div class="stat-content-compact">
+                        <div class="stat-value-compact" id="failed-backups">--</div>
+                        <div class="stat-label-compact">Failed</div>
                     </div>
                 </div>
 
-                <div class="stat-card">
-                    <div class="stat-icon">
+                <div class="stat-card-compact info">
+                    <div class="stat-icon-compact">
                         <i class="fas fa-server"></i>
                     </div>
-                    <div class="stat-content">
-                        <div class="stat-value" id="total-agents">--</div>
-                        <div class="stat-label">Active Agents</div>
+                    <div class="stat-content-compact">
+                        <div class="stat-value-compact" id="total-agents">--</div>
+                        <div class="stat-label-compact">Agents</div>
+                    </div>
+                </div>
+
+                <div class="stat-card-compact info">
+                    <div class="stat-icon-compact">
+                        <i class="fas fa-hdd"></i>
+                    </div>
+                    <div class="stat-content-compact">
+                        <div class="stat-value-compact" id="total-workloads">--</div>
+                        <div class="stat-label-compact">Workloads</div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Charts Section -->
-        <div id="acronis-charts" class="charts-section">
-            <div class="charts-grid">
-                <div class="chart-card">
-                    <div class="chart-header">
-                        <h4>Backup Success Rate</h4>
-                    </div>
-                    <div class="chart-container">
-                        <div id="backup-success-chart" class="chart-placeholder">
-                            <div class="chart-loading">
-                                <i class="fas fa-spinner fa-spin"></i>
-                                <span>Loading chart...</span>
+        <!-- Charts Section - REDESIGNED MODERN LAYOUT -->
+        <div id="acronis-charts" class="modern-charts-section">
+            <div class="charts-container">
+                <!-- Success Rate Chart - Large Featured -->
+                <div class="chart-main-card">
+                    <div class="chart-main-header">
+                        <div class="chart-title-group">
+                            <h3 class="chart-main-title">
+                                <i class="fas fa-chart-pie"></i>
+                                Backup Success Rate
+                            </h3>
+                            <p class="chart-subtitle">Overall backup performance metrics</p>
+                        </div>
+                        <div class="chart-stats-mini">
+                            <div class="mini-stat success">
+                                <span class="mini-value" id="success-rate-percent">--</span>
+                                <span class="mini-label">Success Rate</span>
                             </div>
+                        </div>
+                    </div>
+                    <div id="backup-success-chart" class="chart-main-display">
+                        <div class="chart-loading">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>Loading success rate...</span>
                         </div>
                     </div>
                 </div>
 
-                <div class="chart-card">
-                    <div class="chart-header">
-                        <h4>Backup Frequency</h4>
+                <!-- Frequency Chart - Secondary -->
+                <div class="chart-secondary-card">
+                    <div class="chart-secondary-header">
+                        <h4 class="chart-secondary-title">
+                            <i class="fas fa-chart-bar"></i>
+                            Weekly Frequency
+                        </h4>
                     </div>
-                    <div class="chart-container">
-                        <div id="backup-frequency-chart" class="chart-placeholder">
-                            <div class="chart-loading">
-                                <i class="fas fa-spinner fa-spin"></i>
-                                <span>Loading chart...</span>
-                            </div>
+                    <div id="backup-frequency-chart" class="chart-secondary-display">
+                        <div class="chart-loading">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>Loading frequency...</span>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Agents Grid -->
-        <div id="acronis-agents" class="agents-section">
-            <div class="agents-header">
-                <h4>
-                    <i class="fas fa-list"></i>
-                    Backup Agents
-                    <span id="agents-count-badge" class="count-badge">0</span>
-                </h4>
+        <!-- Agents Section - REDESIGNED MODERN LAYOUT -->
+        <div id="acronis-agents" class="modern-agents-section">
+            <div class="agents-header-modern">
+                <div class="agents-title-group">
+                    <h3 class="agents-main-title">
+                        <i class="fas fa-server"></i>
+                        Backup Agents
+                    </h3>
+                    <p class="agents-subtitle">Monitor and manage your backup infrastructure</p>
+                </div>
+                <div class="agents-controls">
+                    <div class="agents-count-display">
+                        <span class="count-number" id="agents-count-badge">0</span>
+                        <span class="count-label">Active Agents</span>
+                    </div>
+                </div>
             </div>
-
-            <div id="agents-container" class="cards-grid">
+            <div id="agents-container" class="modern-agents-grid">
                 <!-- Agent cards will be loaded here -->
             </div>
 
@@ -309,8 +339,8 @@
                 </h4>
             </div>
 
-            <div id="backups-container" class="backups-container">
-                <!-- Backup items will be loaded here -->
+            <div id="backups-container" class="backup-details-container">
+                <!-- Backup items will be loaded here with scrolling -->
             </div>
 
             <!-- Loading State -->
@@ -375,17 +405,7 @@
                     </div>
                 </div>
 
-                <!-- Backup Statistics Chart -->
-                <div class="agent-chart-container">
-                    <div class="agent-chart" data-chart-id="">
-                        <div class="chart-placeholder">
-                            <div class="no-backups-message" style="display: none;">
-                                <i class="fas fa-info-circle"></i>
-                                <span>No Backups</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <!-- Removed chart container - now showing only agent info -->
             </div>
         </div>
     </template>
@@ -394,38 +414,39 @@
     <template id="backup-item-template">
         <div class="backup-item" data-backup-id="">
             <div class="backup-header">
-                <div class="backup-info">
-                    <div class="backup-time">
-                        <i class="fas fa-clock"></i>
-                        <span class="backup-started">--</span>
-                        <span class="backup-duration">--</span>
-                    </div>
-                    <div class="backup-status">
-                        <span class="backup-state">--</span>
-                        <span class="backup-result">--</span>
-                    </div>
+                <div class="backup-date">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span class="backup-started">--</span>
                 </div>
-                <div class="backup-actions">
-                    <button class="btn btn-link expand-backup-btn" title="Show Activities">
-                        <i class="fas fa-chevron-down"></i>
-                    </button>
+                <div class="backup-status-badge">
+                    <span class="backup-result">--</span>
                 </div>
             </div>
 
-            <div class="backup-details">
-                <div class="backup-metrics">
-                    <div class="backup-metric">
-                        <span class="metric-label">Mode:</span>
-                        <span class="metric-value backup-mode">--</span>
-                    </div>
-                    <div class="backup-metric">
-                        <span class="metric-label">Data Saved:</span>
-                        <span class="metric-value backup-size">--</span>
-                    </div>
-                    <div class="backup-metric">
-                        <span class="metric-label">Completed:</span>
-                        <span class="metric-value backup-completed">--</span>
-                    </div>
+            <div class="backup-details-grid">
+                <div class="backup-detail">
+                    <div class="backup-detail-label">Started</div>
+                    <div class="backup-detail-value backup-started">--</div>
+                </div>
+                <div class="backup-detail">
+                    <div class="backup-detail-label">Completed</div>
+                    <div class="backup-detail-value backup-completed">--</div>
+                </div>
+                <div class="backup-detail">
+                    <div class="backup-detail-label">State</div>
+                    <div class="backup-detail-value backup-state">--</div>
+                </div>
+                <div class="backup-detail">
+                    <div class="backup-detail-label">Mode</div>
+                    <div class="backup-detail-value backup-mode">--</div>
+                </div>
+                <div class="backup-detail">
+                    <div class="backup-detail-label">Data Size</div>
+                    <div class="backup-detail-value backup-size">--</div>
+                </div>
+                <div class="backup-detail">
+                    <div class="backup-detail-label">Duration</div>
+                    <div class="backup-detail-value backup-duration">--</div>
                 </div>
             </div>
 

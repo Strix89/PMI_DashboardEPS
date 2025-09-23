@@ -142,33 +142,44 @@ class AcronisConfigManager:
     
     def get_config(self) -> Optional[Dict[str, str]]:
         """
-        Get current Acronis configuration from available sources.
-        
-        Priority order:
-        1. Environment variables (from .env file)
-        2. JSON configuration files in data/ directory
+        Get current Acronis configuration from JSON file in data directory.
         
         Returns:
             Configuration dictionary or None if no configuration found
         """
-        # Try to load from environment variables first
+        # Try to load from JSON file in data directory
+        config_file_path = os.path.join(self.data_dir, 'acronis_config.json')
+        
+        if os.path.exists(config_file_path):
+            try:
+                with open(config_file_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                
+                # Extract Acronis configuration
+                if "acronis" in data and isinstance(data["acronis"], dict):
+                    config = data["acronis"]
+                    # Convert all values to strings
+                    config = {k: str(v) for k, v in config.items()}
+                    
+                    if self._is_config_complete(config):
+                        logger.debug("Loaded Acronis configuration from JSON file")
+                        return config
+                
+            except (json.JSONDecodeError, Exception) as e:
+                logger.error(f"Failed to load Acronis configuration from JSON: {e}")
+        
+        # Fallback: try to load from environment variables (for backward compatibility)
         config = self._load_from_env()
         if config and self._is_config_complete(config):
-            logger.debug("Loaded Acronis configuration from environment variables")
+            logger.debug("Loaded Acronis configuration from environment variables (fallback)")
             return config
-        
-        # Try to load from JSON files in data directory
-        json_config = self._load_from_json()
-        if json_config and self._is_config_complete(json_config):
-            logger.debug("Loaded Acronis configuration from JSON file")
-            return json_config
         
         logger.debug("No complete Acronis configuration found")
         return None
     
     def save_config(self, config: Dict[str, str]) -> bool:
         """
-        Save Acronis configuration to .env file.
+        Save Acronis configuration to JSON file in data directory.
         
         Args:
             config: Configuration dictionary to save
@@ -185,9 +196,20 @@ class AcronisConfigManager:
             raise AcronisConfigurationError(f"Invalid configuration: {'; '.join(validation_errors)}")
         
         try:
-            # Update .env file with new Acronis configuration
-            self._update_env_file(config)
-            logger.info("Saved Acronis configuration to .env file")
+            # Save to JSON file in data directory
+            config_file_path = os.path.join(self.data_dir, 'acronis_config.json')
+            
+            # Create config with metadata
+            config_data = {
+                "acronis": config,
+                "created_at": datetime.utcnow().isoformat() + "Z",
+                "updated_at": datetime.utcnow().isoformat() + "Z"
+            }
+            
+            with open(config_file_path, 'w', encoding='utf-8') as f:
+                json.dump(config_data, f, indent=2, ensure_ascii=False)
+            
+            logger.info(f"Saved Acronis configuration to {config_file_path}")
             return True
             
         except Exception as e:
@@ -221,27 +243,44 @@ class AcronisConfigManager:
                 errors.append("base_url must start with http:// or https://")
             if not base_url.endswith("/"):
                 errors.append("base_url should end with a forward slash (/)")
+            
+            # Additional Acronis-specific URL validation (relaxed)
+            # Allow any valid URL, not just Acronis-specific ones
+            pass
+            
+            # Common Acronis URL patterns
+            common_patterns = [
+                "cloud.acronis.com",
+                "eu-cloud.acronis.com", 
+                "us-cloud.acronis.com",
+                "ap-cloud.acronis.com"
+            ]
+            
+            # If it's not a common cloud URL, add a warning (not an error)
+            if not any(pattern in base_url for pattern in common_patterns):
+                # This is just informational, not an error
+                pass
         
         # Validate grant_type
         grant_type = config.get("grant_type", "")
         if grant_type and grant_type not in ["client_credentials", "authorization_code", "password"]:
             errors.append(f"Invalid grant_type: {grant_type}. Must be one of: client_credentials, authorization_code, password")
         
-        # Validate client_id format (basic validation)
+        # Validate client_id format (relaxed validation)
         client_id = config.get("client_id", "")
-        if client_id and len(client_id) < 8:
-            errors.append("client_id seems too short (minimum 8 characters expected)")
+        if client_id and len(client_id) < 3:
+            errors.append("client_id seems too short (minimum 3 characters expected)")
         
-        # Validate client_secret format (basic validation)
+        # Validate client_secret format (relaxed validation)
         client_secret = config.get("client_secret", "")
-        if client_secret and len(client_secret) < 16:
-            errors.append("client_secret seems too short (minimum 16 characters expected)")
+        if client_secret and len(client_secret) < 8:
+            errors.append("client_secret seems too short (minimum 8 characters expected)")
         
         return errors
     
     def delete_config(self) -> bool:
         """
-        Delete Acronis configuration from .env file.
+        Delete Acronis configuration JSON file.
         
         Returns:
             True if configuration was deleted successfully
@@ -250,9 +289,14 @@ class AcronisConfigManager:
             AcronisConfigurationError: If configuration cannot be deleted
         """
         try:
-            # Remove Acronis environment variables from .env file
-            self._remove_from_env_file()
-            logger.info("Deleted Acronis configuration from .env file")
+            config_file_path = os.path.join(self.data_dir, 'acronis_config.json')
+            
+            if os.path.exists(config_file_path):
+                os.remove(config_file_path)
+                logger.info(f"Deleted Acronis configuration file: {config_file_path}")
+            else:
+                logger.info("No Acronis configuration file to delete")
+            
             return True
             
         except Exception as e:

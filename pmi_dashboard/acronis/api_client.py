@@ -19,7 +19,7 @@ from contextlib import contextmanager
 # Disable SSL warnings for self-signed certificates
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('pmi_dashboard.acronis')
 
 # Performance and error tracking logger
 perf_logger = logging.getLogger('pmi_dashboard.performance')
@@ -567,7 +567,7 @@ class AcronisAPIClient:
                     )
 
             logger.info(
-                "Requesting new authentication token",
+                f"Requesting new authentication token from {self.base_url}",
                 extra={'operation_id': operation_id, 'grant_type': self.grant_type}
             )
 
@@ -578,7 +578,44 @@ class AcronisAPIClient:
             }
 
             try:
-                response = self._make_request("POST", "/oauth2/token", data=token_data)
+                # Try different OAuth2 endpoints that Acronis might use
+                # Based on working implementation: 2/idp/token is the correct endpoint
+                oauth_endpoints = ["/2/idp/token", "/api/2/idp/token", "/oauth2/token", "/idp/token"]
+                response = None
+                
+                for endpoint in oauth_endpoints:
+                    try:
+                        full_url = f"{self.base_url.rstrip('/')}{endpoint}"
+                        logger.info(f"Trying OAuth2 endpoint: {full_url}")
+                        logger.debug(f"Token data: grant_type={token_data['grant_type']}, client_id={token_data['client_id'][:8]}...")
+                        
+                        # OAuth2 token requests require application/x-www-form-urlencoded
+                        response = self._make_request(
+                            "POST", 
+                            endpoint, 
+                            data=token_data,  # This will be form-encoded
+                            headers={"Content-Type": "application/x-www-form-urlencoded"}
+                        )
+                        
+                        if response and response.status_code == 200:
+                            logger.info(f"Successfully authenticated using endpoint: {endpoint}")
+                            break
+                        elif response and response.status_code == 404:
+                            logger.warning(f"Endpoint {endpoint} not found (404), trying next...")
+                            continue
+                        else:
+                            # Other error, log details and break
+                            status = response.status_code if response else "No response"
+                            logger.error(f"Endpoint {endpoint} failed with status: {status}")
+                            if response:
+                                logger.error(f"Response text: {response.text[:200]}")
+                            break
+                            
+                    except Exception as e:
+                        logger.error(f"Exception with endpoint {endpoint}: {e}")
+                        if endpoint == oauth_endpoints[-1]:  # Last endpoint
+                            raise
+                        continue
 
                 if response and response.status_code == 200:
                     try:
@@ -880,7 +917,7 @@ class AcronisAPIClient:
             )
 
             try:
-                response_data = self._make_authenticated_request("GET", "/agents")
+                response_data = self._make_authenticated_request("GET", "/agent_manager/v2/agents")
 
                 if response_data is None:
                     logger.warning(
@@ -957,7 +994,7 @@ class AcronisAPIClient:
         logger.info("Fetching all workloads from Acronis API")
 
         try:
-            response_data = self._make_authenticated_request("GET", "/workloads")
+            response_data = self._make_authenticated_request("GET", "/workload_management/v5/workloads")
 
             if response_data and "items" in response_data:
                 workloads = response_data["items"]
@@ -1026,48 +1063,92 @@ class AcronisAPIClient:
     def all_backup_info_workloads(self) -> Optional[Dict]:
         """
         Fetch backup information for all workloads.
-
+        
         Returns:
-            Optional[Dict]: Aggregated backup data or None if failed
+            Optional[Dict]: Backup information for all workloads or None if failed
         """
         logger.info("Fetching backup information for all workloads")
-
+        
         try:
-            workloads = self.fetch_all_workloads()
-            if workloads is None:
-                return None
-
-            all_backup_data = {
-                "summary": {"num_backups": 0, "success": 0, "failed": 0},
-                "workload_data": {},
+            # Simplified approach: get backup activities directly without associations
+            logger.info("Fetching backup activities directly")
+            
+            # Fetch backup activities for the last week (configurable)
+            from datetime import datetime, timedelta
+            
+            # Get configurable time window (default 7 days)
+            days_back = getattr(self, 'backup_days_window', 7)
+            start_date = datetime.utcnow() - timedelta(days=days_back)
+            start_date_str = start_date.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+            
+            endpoint = f"/task_manager/v2/activities?order=desc(completedAt)&policyType=backup&completedAt=ge({start_date_str})"
+            response_data = self._make_authenticated_request("GET", endpoint)
+            
+            if not response_data or "items" not in response_data:
+                logger.warning("No backup activities found")
+                return {
+                    "summary": {"num_backups": 0, "success": 0, "failed": 0},
+                    "workload_data": {}
+                }
+            
+            workload_data = {}
+            num_backups = 0
+            success = 0
+            
+            # Process backup activities (simplified approach - show all backups)
+            for item in response_data.get('items', []):
+                # Only process parent activities (not sub-activities)
+                if item.get("parentActivityId", None) is None:
+                    
+                    started_at = item.get('startedAt')
+                    completed_at = item.get('completedAt')
+                    
+                    # Format timestamps
+                    formatted_started_at = self.format_timestamp(started_at)
+                    formatted_completed_at = self.format_timestamp(completed_at)
+                    
+                    num_backups += 1
+                    result_code = item.get('result', {}).get('code', 'N/A')
+                    success += 1 if result_code == 'ok' else 0
+                    
+                    backup_obj = {
+                        'started_at': formatted_started_at,
+                        'completed_at': formatted_completed_at,
+                        'state': item.get('state', 'unknown'),
+                        'run_mode': item.get('context', {}).get('runMode', 'N/A'),
+                        'bytes_saved': item.get('progress', {}).get('bytesSaved', 0),
+                        'result': result_code
+                    }
+                    
+                    # Use resource ID as workload ID
+                    resource_info = item.get('resource', {})
+                    workload_id = resource_info.get('id', 'unknown')
+                    workload_name = resource_info.get('name', 'Unknown')
+                    
+                    if workload_id not in workload_data:
+                        workload_data[workload_id] = {
+                            'backups': [],
+                            'id_tenant': 'unknown',
+                            'hostname': workload_name
+                        }
+                    
+                    workload_data[workload_id]['backups'].append(backup_obj)
+            
+            # Return structure expected by routes.py
+            result = {
+                "summary": {
+                    "num_backups": num_backups,
+                    "success": success,
+                    "failed": num_backups - success
+                },
+                "workload_data": workload_data
             }
-
-            for workload in workloads:
-                workload_id = workload.get("id")
-                if workload_id:
-                    backup_info = self.backup_info_workload(workload_id)
-                    if backup_info:
-                        all_backup_data["workload_data"][workload_id] = backup_info
-
-                        # Update summary statistics
-                        for backup in backup_info.get("backups", []):
-                            all_backup_data["summary"]["num_backups"] += 1
-                            if backup.get("result", "").lower() in [
-                                "ok",
-                                "success",
-                                "completed",
-                            ]:
-                                all_backup_data["summary"]["success"] += 1
-                            else:
-                                all_backup_data["summary"]["failed"] += 1
-
-            logger.info(
-                f"Successfully fetched backup data for {len(all_backup_data['workload_data'])} workloads"
-            )
-            return all_backup_data
-
+            
+            logger.info(f"Successfully processed {num_backups} backup activities")
+            return result
+            
         except Exception as e:
-            logger.error(f"Failed to fetch all backup information: {e}")
+            logger.error(f"Failed to fetch backup information for all workloads: {e}")
             return None
 
     def backup_info_workload(self, workload_id: str) -> Optional[Dict]:
@@ -1083,8 +1164,8 @@ class AcronisAPIClient:
         logger.debug(f"Fetching backup information for workload {workload_id}")
 
         try:
-            # Fetch backup activities for the workload
-            endpoint = f"/activities?workload_id={workload_id}&type=backup"
+            # Fetch backup activities for the workload using correct endpoint
+            endpoint = f"/task_manager/v2/activities?resourceId={workload_id}&policyType=backup&order=desc(completedAt)"
             response_data = self._make_authenticated_request("GET", endpoint)
 
             if response_data and "items" in response_data:
@@ -1093,31 +1174,28 @@ class AcronisAPIClient:
                 # Process backup activities into structured format
                 backups = []
                 for activity in activities:
-                    backup = {
-                        "started_at": self.format_timestamp(
-                            activity.get("started_at", "")
-                        ),
-                        "completed_at": self.format_timestamp(
-                            activity.get("completed_at", "")
-                        ),
-                        "state": activity.get("state", "unknown"),
-                        "run_mode": activity.get("run_mode", "unknown"),
-                        "bytes_saved": activity.get("bytes_saved", 0),
-                        "result": activity.get("result", "unknown"),
-                        "activities": activity.get("sub_activities", []),
-                    }
-                    backups.append(backup)
+                    # Only process parent activities (no parentActivityId)
+                    if activity.get("parentActivityId") is None:
+                        backup = {
+                            "started_at": self.format_timestamp(activity.get("startedAt", "")),
+                            "completed_at": self.format_timestamp(activity.get("completedAt", "")),
+                            "state": activity.get("state", "unknown"),
+                            "run_mode": activity.get("context", {}).get("runMode", "unknown"),
+                            "bytes_saved": activity.get("progress", {}).get("bytesSaved", 0),
+                            "result": activity.get("result", {}).get("code", "unknown"),
+                        }
+                        backups.append(backup)
 
-                # Get workload details
-                workload_response = self._make_authenticated_request(
-                    "GET", f"/workloads/{workload_id}"
-                )
+                # Get workload details from associations
+                associations = self.association_workload_agent()
                 workload_name = "Unknown"
                 tenant_id = "Unknown"
-
-                if workload_response:
-                    workload_name = workload_response.get("name", "Unknown")
-                    tenant_id = workload_response.get("tenant_id", "Unknown")
+                
+                for assoc in associations or []:
+                    if assoc.get('id_workload') == workload_id:
+                        workload_name = assoc.get('hostname', 'Unknown')
+                        tenant_id = assoc.get('id_tenant', 'Unknown')
+                        break
 
                 result = {
                     "hostname": workload_name,
@@ -1151,13 +1229,13 @@ class AcronisAPIClient:
             return "N/A"
 
         try:
-            # Parse ISO timestamp
-            dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-            # Format as DD/MM/YYYY HH:MM:SS
+            from datetime import datetime, timedelta
+            # Try to convert considering nanoseconds or milliseconds
+            dt = datetime.strptime(timestamp[:-1][:26], "%Y-%m-%dT%H:%M:%S.%f")
+            dt = dt + timedelta(hours=1)  # Adjust timezone as in working code
             return dt.strftime("%d/%m/%Y %H:%M:%S")
-        except Exception as e:
-            logger.warning(f"Failed to format timestamp '{timestamp}': {e}")
-            return timestamp
+        except ValueError:
+            return 'N/A'
 
     @handle_api_errors("test_connection")
     @log_performance("test_connection")
@@ -1204,21 +1282,21 @@ class AcronisAPIClient:
                 logger.debug("Step 2: Testing basic API accessibility", extra={'operation_id': operation_id})
                 
                 try:
-                    # Try to fetch tenants as a basic connectivity test
-                    response_data = self._make_authenticated_request("GET", "/tenants")
+                    # Try to fetch agents as a basic connectivity test (based on working implementation)
+                    response_data = self._make_authenticated_request("GET", "/agent_manager/v2/agents")
                     
                     if response_data is not None:
                         connection_details['api_accessible'] = True
-                        connection_details['tenants_accessible'] = True
+                        connection_details['agents_accessible'] = True
                         
                         # Log additional connection info
-                        tenant_count = len(response_data.get('items', [])) if isinstance(response_data, dict) else 0
+                        agent_count = len(response_data.get('items', [])) if isinstance(response_data, dict) else 0
                         
                         logger.info(
-                            f"Connection test successful - API accessible, {tenant_count} tenants found",
+                            f"Connection test successful - API accessible, {agent_count} agents found",
                             extra={
                                 'operation_id': operation_id,
-                                'tenant_count': tenant_count,
+                                'agent_count': agent_count,
                                 **connection_details
                             }
                         )

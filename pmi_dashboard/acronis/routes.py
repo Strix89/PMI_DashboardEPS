@@ -46,7 +46,7 @@ def create_error_response(
     help_text: str = None,
     recoverable: bool = True,
     retry_after: int = None,
-    operation: str = None
+    operation: str = None,
 ):
     """
     Create standardized error response for Flask with comprehensive error handling.
@@ -65,24 +65,24 @@ def create_error_response(
         Flask response tuple (jsonify(response), status_code)
     """
     request_id = str(uuid.uuid4())[:8]
-    
+
     response = {
         "success": False,
         "error": message,
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "request_id": request_id,
-        "recoverable": recoverable
+        "recoverable": recoverable,
     }
 
     if error_code:
         response["error_code"] = error_code
-        
+
     if retry_after:
         response["retry_after"] = retry_after
 
     if details:
         response["details"] = details
-        
+
     if operation:
         response["operation"] = operation
 
@@ -111,111 +111,149 @@ def create_error_response(
     troubleshooting_steps = []
 
     if error_code == "ACRONIS_NOT_CONFIGURED":
-        recovery_suggestions.extend([
-            "Configure your Acronis API credentials in the configuration tab",
-            "Ensure you have valid Client ID and Client Secret from Acronis",
-            "Verify the Base URL points to your Acronis server"
-        ])
-        troubleshooting_steps.extend([
-            "Go to the Acronis configuration tab",
-            "Enter your API credentials",
-            "Test the connection before saving"
-        ])
+        recovery_suggestions.extend(
+            [
+                "Configure your Acronis API credentials in the configuration tab",
+                "Ensure you have valid Client ID and Client Secret from Acronis",
+                "Verify the Base URL points to your Acronis server",
+            ]
+        )
+        troubleshooting_steps.extend(
+            [
+                "Go to the Acronis configuration tab",
+                "Enter your API credentials",
+                "Test the connection before saving",
+            ]
+        )
     elif error_code == "ACRONIS_AUTH_ERROR" or status_code == 401:
-        recovery_suggestions.extend([
-            "Verify your API client ID and secret are correct",
-            "Check if the API credentials have expired",
-            "Ensure the credentials have the required permissions",
-            "Try regenerating your API credentials in Acronis"
-        ])
-        troubleshooting_steps.extend([
-            "Check your Acronis API credentials",
-            "Verify the Client ID and Client Secret are correct",
-            "Ensure the credentials haven't expired",
-            "Test the connection in the configuration tab"
-        ])
+        recovery_suggestions.extend(
+            [
+                "Verify your API client ID and secret are correct",
+                "Check if the API credentials have expired",
+                "Ensure the credentials have the required permissions",
+                "Try regenerating your API credentials in Acronis",
+            ]
+        )
+        troubleshooting_steps.extend(
+            [
+                "Check your Acronis API credentials",
+                "Verify the Client ID and Client Secret are correct",
+                "Ensure the credentials haven't expired",
+                "Test the connection in the configuration tab",
+            ]
+        )
     elif error_code == "ACRONIS_CONNECTION_ERROR" or status_code == 503:
-        recovery_suggestions.extend([
-            "Check if the Acronis server is running and accessible",
-            "Verify network connectivity to the server",
-            "Check if the Base URL is correct",
-            "Try again in a few moments"
-        ])
-        troubleshooting_steps.extend([
-            "Verify the Base URL in your configuration",
-            "Check network connectivity to the Acronis server",
-            "Ensure the server is running and accessible",
-            "Try the connection test in the configuration tab"
-        ])
+        recovery_suggestions.extend(
+            [
+                "Check if the Acronis server is running and accessible",
+                "Verify network connectivity to the server",
+                "Check if the Base URL is correct",
+                "Try again in a few moments",
+            ]
+        )
+        troubleshooting_steps.extend(
+            [
+                "Verify the Base URL in your configuration",
+                "Check network connectivity to the Acronis server",
+                "Ensure the server is running and accessible",
+                "Try the connection test in the configuration tab",
+            ]
+        )
     elif error_code == "ACRONIS_RATE_LIMIT" or status_code == 429:
-        recovery_suggestions.extend([
-            f"Wait {retry_after or 60} seconds before trying again",
-            "Reduce the frequency of requests",
-            "Consider implementing request throttling"
-        ])
-        troubleshooting_steps.extend([
-            "Wait before making another request",
-            "Check if auto-refresh is enabled and consider disabling it temporarily",
-            "Try refreshing data manually instead of automatically"
-        ])
+        recovery_suggestions.extend(
+            [
+                f"Wait {retry_after or 60} seconds before trying again",
+                "Reduce the frequency of requests",
+                "Consider implementing request throttling",
+            ]
+        )
+        troubleshooting_steps.extend(
+            [
+                "Wait before making another request",
+                "Check if auto-refresh is enabled and consider disabling it temporarily",
+                "Try refreshing data manually instead of automatically",
+            ]
+        )
     elif error_code == "ACRONIS_CIRCUIT_BREAKER_OPEN":
-        recovery_suggestions.extend([
-            f"Wait {retry_after or 300} seconds for the circuit breaker to reset",
-            "Check the Acronis server status",
-            "Verify network connectivity"
-        ])
-        troubleshooting_steps.extend([
-            "Wait for the service to recover automatically",
-            "Check the Acronis server logs for issues",
-            "Verify network connectivity is stable"
-        ])
+        recovery_suggestions.extend(
+            [
+                f"Wait {retry_after or 300} seconds for the circuit breaker to reset",
+                "Check the Acronis server status",
+                "Verify network connectivity",
+            ]
+        )
+        troubleshooting_steps.extend(
+            [
+                "Wait for the service to recover automatically",
+                "Check the Acronis server logs for issues",
+                "Verify network connectivity is stable",
+            ]
+        )
     elif status_code == 403:
-        recovery_suggestions.extend([
-            "Check the API credentials permissions in Acronis",
-            "Verify the credentials are assigned to the correct tenant",
-            "Ensure the user has the necessary privileges for this operation"
-        ])
-        troubleshooting_steps.extend([
-            "Review your API credentials permissions in Acronis",
-            "Ensure the credentials have access to the required resources",
-            "Contact your Acronis administrator if needed"
-        ])
+        recovery_suggestions.extend(
+            [
+                "Check the API credentials permissions in Acronis",
+                "Verify the credentials are assigned to the correct tenant",
+                "Ensure the user has the necessary privileges for this operation",
+            ]
+        )
+        troubleshooting_steps.extend(
+            [
+                "Review your API credentials permissions in Acronis",
+                "Ensure the credentials have access to the required resources",
+                "Contact your Acronis administrator if needed",
+            ]
+        )
     elif status_code == 404:
-        recovery_suggestions.extend([
-            "Verify the resource ID is correct",
-            "Check if the resource still exists",
-            "Refresh the page to get updated information"
-        ])
-        troubleshooting_steps.extend([
-            "Refresh the data to get the latest information",
-            "Check if the resource was deleted or moved",
-            "Verify you have access to the resource"
-        ])
+        recovery_suggestions.extend(
+            [
+                "Verify the resource ID is correct",
+                "Check if the resource still exists",
+                "Refresh the page to get updated information",
+            ]
+        )
+        troubleshooting_steps.extend(
+            [
+                "Refresh the data to get the latest information",
+                "Check if the resource was deleted or moved",
+                "Verify you have access to the resource",
+            ]
+        )
     elif status_code >= 500:
-        recovery_suggestions.extend([
-            "Try the operation again in a few moments",
-            "Check the Acronis server status",
-            "Contact your system administrator if the problem persists"
-        ])
-        troubleshooting_steps.extend([
-            "Wait a moment and try again",
-            "Check if other Acronis operations are working",
-            "Contact support if the issue continues"
-        ])
+        recovery_suggestions.extend(
+            [
+                "Try the operation again in a few moments",
+                "Check the Acronis server status",
+                "Contact your system administrator if the problem persists",
+            ]
+        )
+        troubleshooting_steps.extend(
+            [
+                "Wait a moment and try again",
+                "Check if other Acronis operations are working",
+                "Contact support if the issue continues",
+            ]
+        )
 
     if recovery_suggestions:
         response["recovery_suggestions"] = recovery_suggestions
-        
+
     if troubleshooting_steps:
         response["troubleshooting_steps"] = troubleshooting_steps
 
     # Add user-friendly error categories
     error_category = "unknown"
-    if status_code == 401 or error_code in ["ACRONIS_AUTH_ERROR", "ACRONIS_INVALID_CREDENTIALS"]:
+    if status_code == 401 or error_code in [
+        "ACRONIS_AUTH_ERROR",
+        "ACRONIS_INVALID_CREDENTIALS",
+    ]:
         error_category = "authentication"
     elif status_code == 403:
         error_category = "authorization"
-    elif status_code in [502, 503, 504] or error_code in ["ACRONIS_CONNECTION_ERROR", "ACRONIS_TIMEOUT"]:
+    elif status_code in [502, 503, 504] or error_code in [
+        "ACRONIS_CONNECTION_ERROR",
+        "ACRONIS_TIMEOUT",
+    ]:
         error_category = "connectivity"
     elif status_code == 429 or error_code == "ACRONIS_RATE_LIMIT":
         error_category = "rate_limit"
@@ -225,7 +263,7 @@ def create_error_response(
         error_category = "server_error"
     elif status_code >= 400:
         error_category = "client_error"
-        
+
     response["error_category"] = error_category
 
     # Log error with comprehensive context
@@ -238,13 +276,17 @@ def create_error_response(
         "recoverable": recoverable,
         "retry_after": retry_after,
         "details": details,
-        "user_agent": request.headers.get('User-Agent', 'Unknown') if request else 'Unknown',
-        "remote_addr": request.remote_addr if request else 'Unknown'
+        "user_agent": (
+            request.headers.get("User-Agent", "Unknown") if request else "Unknown"
+        ),
+        "remote_addr": request.remote_addr if request else "Unknown",
     }
 
     # Use appropriate logger based on severity
     if status_code >= 500:
-        error_logger.error(f"Server Error ({status_code}): {message}", extra=log_context)
+        error_logger.error(
+            f"Server Error ({status_code}): {message}", extra=log_context
+        )
     elif status_code >= 400:
         logger.warning(f"Client Error ({status_code}): {message}", extra=log_context)
     else:
@@ -278,11 +320,11 @@ def create_success_response(data: Any = None, message: str = None) -> Dict[str, 
 def handle_acronis_api_error(error: Exception, operation: str) -> tuple:
     """
     Handle Acronis API errors and convert them to appropriate HTTP responses.
-    
+
     Args:
         error: The exception that occurred
         operation: Description of the operation that failed
-        
+
     Returns:
         Tuple of (response, status_code) for Flask
     """
@@ -293,7 +335,7 @@ def handle_acronis_api_error(error: Exception, operation: str) -> tuple:
             error_code=error.error_code or "ACRONIS_AUTH_ERROR",
             details=error.details,
             operation=operation,
-            recoverable=error.recoverable
+            recoverable=error.recoverable,
         )
     elif isinstance(error, AcronisConnectionError):
         return create_error_response(
@@ -303,7 +345,7 @@ def handle_acronis_api_error(error: Exception, operation: str) -> tuple:
             details=error.details,
             operation=operation,
             recoverable=error.recoverable,
-            retry_after=error.retry_after
+            retry_after=error.retry_after,
         )
     elif isinstance(error, AcronisRateLimitError):
         return create_error_response(
@@ -313,16 +355,16 @@ def handle_acronis_api_error(error: Exception, operation: str) -> tuple:
             details=error.details,
             operation=operation,
             recoverable=error.recoverable,
-            retry_after=error.retry_after
+            retry_after=error.retry_after,
         )
     elif isinstance(error, AcronisServerError):
         return create_error_response(
             f"Server error: {str(error)}",
-            error.details.get('status_code', 500),
+            error.details.get("status_code", 500),
             error_code=error.error_code or "ACRONIS_SERVER_ERROR",
             details=error.details,
             operation=operation,
-            recoverable=error.recoverable
+            recoverable=error.recoverable,
         )
     elif isinstance(error, AcronisAPIError):
         # Generic API error
@@ -334,7 +376,7 @@ def handle_acronis_api_error(error: Exception, operation: str) -> tuple:
             details=error.details,
             operation=operation,
             recoverable=error.recoverable,
-            retry_after=error.retry_after
+            retry_after=error.retry_after,
         )
     else:
         # Unexpected error
@@ -345,7 +387,7 @@ def handle_acronis_api_error(error: Exception, operation: str) -> tuple:
             error_code="ACRONIS_UNEXPECTED_ERROR",
             details={"error_type": type(error).__name__},
             operation=operation,
-            recoverable=False
+            recoverable=False,
         )
 
 
@@ -365,9 +407,9 @@ def create_client_from_config() -> Optional[AcronisAPIClient]:
             return None
 
         # Validate required configuration fields
-        required_fields = ['base_url', 'client_id', 'client_secret']
+        required_fields = ["base_url", "client_id", "client_secret"]
         missing_fields = [field for field in required_fields if not config.get(field)]
-        
+
         if missing_fields:
             logger.error(f"Missing required configuration fields: {missing_fields}")
             return None
@@ -378,10 +420,10 @@ def create_client_from_config() -> Optional[AcronisAPIClient]:
             client_secret=config["client_secret"],
             grant_type=config.get("grant_type", "client_credentials"),
         )
-        
+
         logger.debug("Successfully created Acronis API client from configuration")
         return client
-        
+
     except Exception as e:
         logger.error(f"Failed to create Acronis API client: {e}", exc_info=True)
         return None
@@ -830,45 +872,92 @@ def get_agent_backups(agent_id: str):
                 error_code="ACRONIS_NOT_CONFIGURED",
             )
 
-        # First, get all associations to find workloads for this agent
-        associations = client.association_workload_agent()
-        if associations is None:
+        # First, get agent info to find the agent hostname
+        agents_data = client.fetch_all_agents()
+        if agents_data is None:
             return create_error_response(
-                "Failed to fetch associations from Acronis API",
+                "Failed to fetch agents from Acronis API",
                 503,
                 error_code="ACRONIS_API_ERROR",
             )
 
-        # Find workloads associated with this agent
-        agent_workloads = [
-            assoc["workload_id"]
-            for assoc in associations
-            if assoc.get("agent_id") == agent_id
-        ]
+        # Find the specific agent
+        target_agent = None
+        agent_hostname = None
+        for agent_data in agents_data:
+            if agent_data.get("id") == agent_id:
+                target_agent = agent_data
+                agent_hostname = agent_data.get("name", "Unknown")
+                break
 
-        if not agent_workloads:
-            return jsonify(
-                create_success_response(
-                    {
-                        "agent_id": agent_id,
-                        "backups": [],
-                        "statistics": BackupStatistics(0, 0, 0).to_dict(),
-                        "message": "No workloads found for this agent",
-                    }
-                )
+        if not target_agent:
+            return create_error_response(
+                f"Agent with ID {agent_id} not found",
+                404,
+                error_code="AGENT_NOT_FOUND",
             )
 
-        # Get backup information for each workload
-        all_backups = []
-        workload_data = {}
+        # Get all backup information (same approach as the working /backups endpoint)
+        backup_data = client.all_backup_info_workloads()
+        if backup_data is None:
+            return create_error_response(
+                "Failed to fetch backup information from Acronis API",
+                503,
+                error_code="ACRONIS_API_ERROR",
+            )
 
-        for workload_id in agent_workloads:
-            backup_info = client.backup_info_workload(workload_id)
-            if backup_info:
-                workload_data[workload_id] = backup_info
+        # Filter backup data for this specific agent by hostname
+        agent_backups = []
+        agent_workload_data = {}
 
-                for backup_data_item in backup_info.get("backups", []):
+        # Debug logging - show all available hostnames
+        all_hostnames = [
+            workload_info.get("hostname", "Unknown")
+            for workload_info in backup_data.get("workload_data", {}).values()
+        ]
+        logger.debug(
+            f"Looking for agent hostname '{agent_hostname}' in workloads: {all_hostnames}"
+        )
+
+        for workload_id, workload_info in backup_data.get("workload_data", {}).items():
+            workload_hostname = workload_info.get("hostname", "Unknown")
+            logger.debug(
+                f"Comparing workload hostname '{workload_hostname}' with agent hostname '{agent_hostname}'"
+            )
+
+            # Check if this workload belongs to our agent (by hostname or other criteria)
+            is_match = False
+
+            # Try matching by hostname
+            if workload_hostname == agent_hostname:
+                is_match = True
+                logger.info(
+                    f"Found matching workload {workload_id} for agent {agent_id} by hostname"
+                )
+
+            # Try matching by tenant ID if hostname doesn't match
+            elif workload_info.get("id_tenant") == target_agent.get("tenant_id"):
+                is_match = True
+                logger.info(
+                    f"Found matching workload {workload_id} for agent {agent_id} by tenant ID"
+                )
+
+            # Try partial hostname matching (case insensitive)
+            elif (
+                agent_hostname.lower() in workload_hostname.lower()
+                or workload_hostname.lower() in agent_hostname.lower()
+            ):
+                is_match = True
+                logger.info(
+                    f"Found matching workload {workload_id} for agent {agent_id} by partial hostname match"
+                )
+
+            if is_match:
+                agent_workload_data[workload_id] = workload_info
+
+                for backup_data_item in workload_info.get("backups", []):
                     try:
+                        # Transform and validate backup data
                         transformed_backup = transform_backup_data(backup_data_item)
                         validation_errors = validate_backup_data(transformed_backup)
 
@@ -879,23 +968,41 @@ def get_agent_backups(agent_id: str):
                             continue
 
                         backup = AcronisBackup.from_dict(transformed_backup)
-                        all_backups.append(backup.to_dict())
+                        agent_backups.append(backup.to_dict())
 
                     except Exception as e:
                         logger.warning(f"Failed to process backup data: {e}")
                         continue
 
+        # Sort backups by date (newest first)
+        agent_backups.sort(key=lambda x: x.get("started_at", ""), reverse=True)
+
         # Create statistics
-        statistics = create_backup_statistics(all_backups)
+        statistics = (
+            create_backup_statistics(agent_backups)
+            if agent_backups
+            else BackupStatistics(0, 0, 0)
+        )
+
+        # Debug logging
+        logger.info(
+            f"Agent {agent_id} ({agent_hostname}): Found {len(agent_workload_data)} workloads, {len(agent_backups)} backups"
+        )
+        logger.debug(f"Workload data keys: {list(agent_workload_data.keys())}")
+        logger.debug(
+            f"Total workloads in backup_data: {len(backup_data.get('workload_data', {}))}"
+        )
 
         return jsonify(
             create_success_response(
                 {
                     "agent_id": agent_id,
-                    "workload_data": workload_data,
-                    "backups": all_backups,
+                    "agent_hostname": agent_hostname,
+                    "workload_data": agent_workload_data,
+                    "backups": agent_backups,
                     "statistics": statistics.to_dict(),
-                    "total_workloads": len(agent_workloads),
+                    "total_workloads": len(agent_workload_data),
+                    "total_backups": len(agent_backups),
                 }
             )
         )
@@ -925,21 +1032,21 @@ def test_connection():
         data = request.get_json()
         if not data:
             return create_error_response(
-                "No configuration data provided for connection test", 
+                "No configuration data provided for connection test",
                 400,
-                error_code="ACRONIS_NO_CONFIG_DATA"
+                error_code="ACRONIS_NO_CONFIG_DATA",
             )
 
         # Validate required fields
         required_fields = ["base_url", "client_id", "client_secret"]
         missing_fields = [field for field in required_fields if not data.get(field)]
-        
+
         if missing_fields:
             return create_error_response(
                 f"Missing required fields: {', '.join(missing_fields)}",
                 400,
                 error_code="ACRONIS_MISSING_FIELDS",
-                details={"missing_fields": missing_fields}
+                details={"missing_fields": missing_fields},
             )
 
         # Create test client
@@ -954,58 +1061,182 @@ def test_connection():
             return create_error_response(
                 f"Failed to create API client: {str(e)}",
                 400,
-                error_code="ACRONIS_CLIENT_CREATION_ERROR"
+                error_code="ACRONIS_CLIENT_CREATION_ERROR",
             )
 
         # Test connection
         try:
             connection_result = test_client.test_connection()
-            
+
             if connection_result:
-                return jsonify(create_success_response(
-                    {
-                        "connection_status": "success",
-                        "message": "Successfully connected to Acronis API",
-                        "server_url": data["base_url"]
-                    },
-                    "Connection test successful"
-                ))
+                return jsonify(
+                    create_success_response(
+                        {
+                            "connection_status": "success",
+                            "message": "Successfully connected to Acronis API",
+                            "server_url": data["base_url"],
+                        },
+                        "Connection test successful",
+                    )
+                )
             else:
                 return create_error_response(
                     "Connection test failed - unable to authenticate with Acronis API",
                     401,
                     error_code="ACRONIS_CONNECTION_TEST_FAILED",
-                    help_text="Please verify your API credentials and server URL"
+                    help_text="Please verify your API credentials and server URL",
                 )
-                
+
         except AcronisAuthenticationError as e:
             return create_error_response(
                 f"Authentication failed: {str(e)}",
                 401,
                 error_code="ACRONIS_AUTH_ERROR",
-                help_text="Please check your Client ID and Client Secret"
+                help_text="Please check your Client ID and Client Secret",
             )
         except AcronisConnectionError as e:
             return create_error_response(
                 f"Connection failed: {str(e)}",
                 503,
                 error_code="ACRONIS_CONNECTION_ERROR",
-                help_text="Please check the Base URL and network connectivity"
+                help_text="Please check the Base URL and network connectivity",
             )
         except Exception as e:
             return create_error_response(
-                f"Connection test error: {str(e)}",
-                500,
-                error_code="ACRONIS_TEST_ERROR"
+                f"Connection test error: {str(e)}", 500, error_code="ACRONIS_TEST_ERROR"
             )
 
     except Exception as e:
         logger.exception("Connection test failed")
         return create_error_response(
-            f"Connection test failed: {str(e)}", 
+            f"Connection test failed: {str(e)}",
             500,
-            error_code="ACRONIS_TEST_INTERNAL_ERROR"
+            error_code="ACRONIS_TEST_INTERNAL_ERROR",
         )
+
+
+@acronis_bp.route("/agents/<agent_id>", methods=["GET"])
+def get_agent_details(agent_id: str):
+    """Get detailed information for a specific agent."""
+    try:
+        client = create_client_from_config()
+        if not client:
+            return create_error_response(
+                "Acronis not configured. Please configure API credentials first.",
+                400,
+                error_code="ACRONIS_NOT_CONFIGURED",
+            )
+
+        # Fetch agents from API
+        agents_data = client.fetch_all_agents()
+        if agents_data is None:
+            return create_error_response(
+                "Failed to fetch agents from Acronis API",
+                503,
+                error_code="ACRONIS_API_ERROR",
+            )
+
+        # Find the specific agent
+        target_agent = None
+        for agent_data in agents_data:
+            if agent_data.get("id") == agent_id:
+                target_agent = agent_data
+                break
+
+        if not target_agent:
+            return create_error_response(
+                f"Agent with ID {agent_id} not found",
+                404,
+                error_code="AGENT_NOT_FOUND",
+            )
+
+        # Transform and validate agent data
+        try:
+            transformed_data = transform_agent_data(target_agent)
+            validation_errors = validate_agent_data(transformed_data)
+
+            if validation_errors:
+                logger.warning(f"Agent data validation failed: {validation_errors}")
+                return create_error_response(
+                    "Agent data validation failed",
+                    500,
+                    details={"validation_errors": validation_errors},
+                )
+
+            agent = AcronisAgent.from_dict(transformed_data)
+            return jsonify(create_success_response(agent.to_dict()))
+
+        except Exception as e:
+            logger.error(f"Failed to process agent data: {e}")
+            return create_error_response(f"Failed to process agent data: {str(e)}", 500)
+
+    except AcronisConnectionError as e:
+        return handle_acronis_api_error(e, f"get agent details {agent_id}")
+    except AcronisAuthenticationError as e:
+        return handle_acronis_api_error(e, f"get agent details {agent_id}")
+    except Exception as e:
+        logger.exception(f"Failed to get agent details for {agent_id}")
+        return create_error_response(
+            f"Failed to get agent details: {str(e)}",
+            500,
+            operation=f"get agent details {agent_id}",
+        )
+
+
+@acronis_bp.route("/debug/agent/<agent_id>", methods=["GET"])
+def debug_agent_data(agent_id: str):
+    """Debug endpoint to see all available data for an agent."""
+    try:
+        client = create_client_from_config()
+        if not client:
+            return create_error_response(
+                "Acronis not configured. Please configure API credentials first.",
+                400,
+                error_code="ACRONIS_NOT_CONFIGURED",
+            )
+
+        # Get agent data
+        agents_data = client.fetch_all_agents()
+        target_agent = None
+        for agent_data in agents_data:
+            if agent_data.get("id") == agent_id:
+                target_agent = agent_data
+                break
+
+        # Get all backup data
+        backup_data = client.all_backup_info_workloads()
+
+        # Get associations
+        associations = client.association_workload_agent()
+
+        debug_info = {
+            "agent_id": agent_id,
+            "agent_data": target_agent,
+            "total_workloads": (
+                len(backup_data.get("workload_data", {})) if backup_data else 0
+            ),
+            "workload_hostnames": (
+                [
+                    {
+                        "workload_id": wid,
+                        "hostname": winfo.get("hostname", "Unknown"),
+                        "id_tenant": winfo.get("id_tenant", "Unknown"),
+                        "backup_count": len(winfo.get("backups", [])),
+                    }
+                    for wid, winfo in backup_data.get("workload_data", {}).items()
+                ]
+                if backup_data
+                else []
+            ),
+            "associations": associations,
+            "associations_count": len(associations) if associations else 0,
+        }
+
+        return jsonify(create_success_response(debug_info))
+
+    except Exception as e:
+        logger.exception(f"Debug failed for agent {agent_id}")
+        return create_error_response(f"Debug failed: {str(e)}", 500)
 
 
 # Health Check Route
@@ -1030,10 +1261,14 @@ def health_check():
                 client = create_client_from_config()
                 if client and client.test_connection():
                     health_data["api_connection"] = "connected"
-                    health_data["connection_message"] = "Successfully connected to Acronis API"
+                    health_data["connection_message"] = (
+                        "Successfully connected to Acronis API"
+                    )
                 else:
                     health_data["api_connection"] = "failed"
-                    health_data["connection_message"] = "Failed to connect to Acronis API"
+                    health_data["connection_message"] = (
+                        "Failed to connect to Acronis API"
+                    )
                     health_data["status"] = "degraded"
             except AcronisAuthenticationError as e:
                 health_data["api_connection"] = "authentication_failed"
@@ -1077,3 +1312,240 @@ def not_found(error):
 def internal_error(error):
     """Handle internal server errors."""
     return create_error_response("Internal server error", 500)
+
+
+@acronis_bp.route("/agent/backups", methods=["GET"])
+def get_agent_backups_by_hostname():
+    """Get backup information for a specific agent by hostname."""
+    try:
+        hostname = request.args.get("hostname")
+        if not hostname:
+            return create_error_response(
+                "Hostname parameter is required",
+                400,
+                error_code="MISSING_HOSTNAME_PARAMETER",
+            )
+
+        client = create_client_from_config()
+        if not client:
+            return create_error_response(
+                "Acronis not configured. Please configure API credentials first.",
+                400,
+                error_code="ACRONIS_NOT_CONFIGURED",
+            )
+
+        # Fetch all backup information
+        backup_data = client.all_backup_info_workloads()
+        if backup_data is None:
+            return create_error_response(
+                "Failed to fetch backup information from Acronis API",
+                503,
+                error_code="ACRONIS_API_ERROR",
+            )
+
+        # Find backups for the specific hostname
+        agent_backups = []
+        workload_info = None
+
+        for workload_id, workload_data in backup_data.get("workload_data", {}).items():
+            if workload_data.get("hostname", "").lower() == hostname.lower():
+                workload_info = workload_data
+
+                for backup_data_item in workload_data.get("backups", []):
+                    try:
+                        # Transform and validate backup data
+                        transformed_backup = transform_backup_data(backup_data_item)
+                        validation_errors = validate_backup_data(transformed_backup)
+
+                        if validation_errors:
+                            logger.warning(
+                                f"Backup data validation failed for {hostname}: {validation_errors}"
+                            )
+                            continue
+
+                        backup = AcronisBackup.from_dict(transformed_backup)
+                        agent_backups.append(backup.to_dict())
+
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to process backup data for {hostname}: {e}"
+                        )
+                        continue
+                break
+
+        if workload_info is None:
+            return create_error_response(
+                f"No agent found with hostname '{hostname}'",
+                404,
+                error_code="AGENT_NOT_FOUND",
+                help_text=f"Make sure the hostname '{hostname}' is correct and the agent is properly configured",
+            )
+
+        # Create response with agent info and backups
+        response_data = {
+            "hostname": workload_info.get("hostname", hostname),
+            "id_tenant": workload_info.get("id_tenant", ""),
+            "backups": agent_backups,
+            "backup_count": len(agent_backups),
+        }
+
+        # Add backup statistics
+        if agent_backups:
+            successful_backups = len(
+                [b for b in agent_backups if b.get("result") == "success"]
+            )
+            failed_backups = len(
+                [b for b in agent_backups if b.get("result") == "failed"]
+            )
+
+            response_data["statistics"] = {
+                "total_backups": len(agent_backups),
+                "successful_backups": successful_backups,
+                "failed_backups": failed_backups,
+                "success_rate": (
+                    (successful_backups / len(agent_backups) * 100)
+                    if agent_backups
+                    else 0
+                ),
+            }
+
+        return jsonify(create_success_response(response_data))
+
+    except AcronisConnectionError as e:
+        return handle_acronis_api_error(e, f"get backups for agent {hostname}")
+    except AcronisAuthenticationError as e:
+        return handle_acronis_api_error(e, f"get backups for agent {hostname}")
+    except Exception as e:
+        logger.exception(f"Failed to get backups for agent {hostname}")
+        return create_error_response(
+            f"Failed to get backups for agent {hostname}: {str(e)}",
+            500,
+            operation=f"get backups for agent {hostname}",
+        )
+
+
+@acronis_bp.route("/agent/<agent_id>/backups", methods=["GET"])
+def get_agent_backups_by_id(agent_id):
+    """Get backup information for a specific agent by agent ID."""
+    try:
+        client = create_client_from_config()
+        if not client:
+            return create_error_response(
+                "Acronis not configured. Please configure API credentials first.",
+                400,
+                error_code="ACRONIS_NOT_CONFIGURED",
+            )
+
+        # First, get the agent to find its hostname
+        agents_data = client.fetch_all_agents()
+        if agents_data is None:
+            return create_error_response(
+                "Failed to fetch agents from Acronis API",
+                503,
+                error_code="ACRONIS_API_ERROR",
+            )
+
+        # Find the agent with the specified ID
+        target_agent = None
+        for agent_data in agents_data:
+            if agent_data.get("id") == agent_id:
+                target_agent = agent_data
+                break
+
+        if not target_agent:
+            return create_error_response(
+                f"Agent with ID '{agent_id}' not found",
+                404,
+                error_code="AGENT_NOT_FOUND",
+            )
+
+        # Get the hostname from the agent data
+        hostname = target_agent.get("name", "")
+        if not hostname:
+            return create_error_response(
+                f"Agent '{agent_id}' does not have a valid hostname",
+                400,
+                error_code="INVALID_AGENT_HOSTNAME",
+            )
+
+        # Now fetch backups using the hostname
+        backup_data = client.all_backup_info_workloads()
+        if backup_data is None:
+            return create_error_response(
+                "Failed to fetch backup information from Acronis API",
+                503,
+                error_code="ACRONIS_API_ERROR",
+            )
+
+        # Find backups for the agent's hostname
+        agent_backups = []
+        workload_info = None
+
+        for workload_id, workload_data in backup_data.get("workload_data", {}).items():
+            if workload_data.get("hostname", "").lower() == hostname.lower():
+                workload_info = workload_data
+
+                for backup_data_item in workload_data.get("backups", []):
+                    try:
+                        # Transform and validate backup data
+                        transformed_backup = transform_backup_data(backup_data_item)
+                        validation_errors = validate_backup_data(transformed_backup)
+
+                        if validation_errors:
+                            logger.warning(
+                                f"Backup data validation failed for agent {agent_id}: {validation_errors}"
+                            )
+                            continue
+
+                        backup = AcronisBackup.from_dict(transformed_backup)
+                        agent_backups.append(backup.to_dict())
+
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to process backup data for agent {agent_id}: {e}"
+                        )
+                        continue
+                break
+
+        # Create response
+        response_data = {
+            "agent_id": agent_id,
+            "hostname": hostname,
+            "id_tenant": workload_info.get("id_tenant", "") if workload_info else "",
+            "backups": agent_backups,
+            "backup_count": len(agent_backups),
+        }
+
+        # Add backup statistics
+        if agent_backups:
+            successful_backups = len(
+                [b for b in agent_backups if b.get("result") == "success"]
+            )
+            failed_backups = len(
+                [b for b in agent_backups if b.get("result") == "failed"]
+            )
+
+            response_data["statistics"] = {
+                "total_backups": len(agent_backups),
+                "successful_backups": successful_backups,
+                "failed_backups": failed_backups,
+                "success_rate": (
+                    (successful_backups / len(agent_backups) * 100)
+                    if agent_backups
+                    else 0
+                ),
+            }
+
+        return jsonify(create_success_response(response_data))
+
+    except AcronisConnectionError as e:
+        return handle_acronis_api_error(e, f"get backups for agent {agent_id}")
+    except AcronisAuthenticationError as e:
+        return handle_acronis_api_error(e, f"get backups for agent {agent_id}")
+    except Exception as e:
+        logger.exception(f"Failed to get backups for agent {agent_id}")
+        return create_error_response(
+            f"Failed to get backups for agent {agent_id}: {str(e)}",
+            500,
+            operation=f"get backups for agent {agent_id}",
+        )

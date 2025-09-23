@@ -1,0 +1,10 @@
+{
+  "acronis": {
+    "base_url": "https://ecs.evolumia.cloud/api/",
+    "client_id": "d3f0887e-7931-4a1a-bf57-701173037ba9",
+    "client_secret": "6u6yc5aepze2kmd6mgj2milyaiyqvdjokmetszlwx7rkryfeecty",
+    "grant_type": "client_credentials"
+  },
+  "created_at": "2025-09-23T20:40:44.597553Z",
+  "updated_at": "2025-09-23T20:40:44.597561Z"
+}

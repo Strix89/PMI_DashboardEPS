@@ -38,6 +38,7 @@ pmi_dashboard/__pycache/
 pmi_dashboard/proxmox/__pycache__/
 pmi_dashboard/acronis/__pycache__/
 pmi_dashboard/proxmox/data/proxomox_config.json
+pmi_dashboard/proxmox/data/acronis_config.json
 pmi_dashboard/logs/*
 metrics_dashboard/__pycache__/
 metrics_dashboard/output/*

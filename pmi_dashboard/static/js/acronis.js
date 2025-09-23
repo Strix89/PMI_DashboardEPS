@@ -14,11 +14,12 @@ class AcronisManager {
         this.currentView = 'dashboard'; // dashboard, config, details
         this.currentAgentId = null;
         this.refreshInterval = null;
-        this.refreshRate = 60000; // 60 seconds
+        this.refreshRate = 30000; // 30 seconds for more frequent updates
         this.isActive = false;
         this.agents = [];
+        this.workloads = [];
         this.statistics = {};
-        
+
         // Enhanced resource management
         this.activeRequests = new Map(); // Track active requests for cleanup
         this.retryTimeout = null;
@@ -28,7 +29,7 @@ class AcronisManager {
         this.maxBackoffMultiplier = 8;
         this.consecutiveErrors = 0;
         this.maxConsecutiveErrors = 3;
-        
+
         // Performance monitoring
         this.performanceMetrics = {
             requestCount: 0,
@@ -36,7 +37,7 @@ class AcronisManager {
             averageResponseTime: 0,
             lastSuccessfulRefresh: null
         };
-        
+
         this.init();
     }
 
@@ -47,7 +48,7 @@ class AcronisManager {
         this.setupEventListeners();
         this.setupViewManagement();
         this.checkInitialConfiguration();
-        
+
         console.log('Acronis Manager initialized');
     }
 
@@ -76,7 +77,7 @@ class AcronisManager {
                     this.consecutiveErrors = 0;
                     this.refreshBackoffMultiplier = 1;
                     this.startAutoRefresh();
-                    
+
                     // Show confirmation
                     this.showNotification('Auto-refresh enabled', 'success', 2000);
                 } else {
@@ -121,7 +122,7 @@ class AcronisManager {
         // Listen for app pause/resume events (mobile optimization)
         document.addEventListener('apppaused', () => this.onAppPaused());
         document.addEventListener('appresumed', () => this.onAppResumed());
-        
+
         // Listen for page visibility changes for better resource management
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
@@ -130,12 +131,12 @@ class AcronisManager {
                 this.onPageVisible();
             }
         });
-        
+
         // Listen for beforeunload to cleanup resources
         window.addEventListener('beforeunload', () => {
             this.cleanup();
         });
-        
+
         // Listen for network status changes
         window.addEventListener('online', () => this.onNetworkOnline());
         window.addEventListener('offline', () => this.onNetworkOffline());
@@ -151,11 +152,12 @@ class AcronisManager {
 
     /**
      * Check if initial configuration exists
+     * @param {boolean} silent - Whether to load data silently without notifications
      */
     async checkInitialConfiguration() {
         try {
             const response = await this.makeRequest('GET', '/config');
-            if (response && response.success && response.config) {
+            if (response && response.success && response.data && response.data.configured) {
                 // Configuration exists, show dashboard
                 this.showDashboardView();
                 this.loadInitialData();
@@ -176,7 +178,7 @@ class AcronisManager {
      */
     showView(viewName) {
         const views = ['config', 'dashboard', 'details'];
-        
+
         views.forEach(view => {
             const element = document.getElementById(`acronis-${view}-view`);
             if (element) {
@@ -193,7 +195,7 @@ class AcronisManager {
     showConfigurationView() {
         this.showView('config');
         this.stopAutoRefresh();
-        
+
         // Load existing configuration if available
         if (window.acronisConfigManager) {
             window.acronisConfigManager.loadConfiguration();
@@ -204,10 +206,14 @@ class AcronisManager {
      * Show dashboard view
      */
     showDashboardView() {
+        console.log(`showDashboardView called, isActive=${this.isActive}`);
         this.showView('dashboard');
         if (this.isActive) {
+            console.log('Loading initial data and starting auto-refresh...');
             this.loadInitialData();
             this.startAutoRefresh();
+        } else {
+            console.log('Tab not active, skipping data load');
         }
     }
 
@@ -228,7 +234,8 @@ class AcronisManager {
     async loadInitialData() {
         await Promise.all([
             this.loadStatistics(),
-            this.loadAgents()
+            this.loadAgents(),
+            this.loadWorkloads()
         ]);
     }
 
@@ -236,29 +243,25 @@ class AcronisManager {
      * Load backup statistics with enhanced status indicators
      */
     async loadStatistics() {
-        this.showLoadingState('backup statistics', true);
-        
+        // Removed loading notification - keep only visual indicators
+
         try {
             const response = await this.makeRequest('GET', '/backups');
-            
+
             if (response && response.success) {
                 this.statistics = response.data.summary || {};
                 this.updateStatisticsDisplay();
-                
+
                 // Load charts if chart module is available
                 if (window.acronisCharts) {
                     window.acronisCharts.updateCharts(response.data);
                 }
-                
-                // Show connection status
-                this.showConnectionStatus(true, 'Backup statistics loaded successfully');
+
+                // Removed connection status notification
             }
         } catch (error) {
             this.handleError(error, 'load backup statistics');
             this.showEmptyStatistics();
-            this.showConnectionStatus(false, 'Failed to load backup statistics');
-        } finally {
-            this.showLoadingState('backup statistics', false);
         }
     }
 
@@ -266,36 +269,69 @@ class AcronisManager {
      * Load agents list with enhanced status indicators
      */
     async loadAgents() {
-        this.showAgentsLoading(true);
-        this.showLoadingState('agents', true);
+        // Add loading class for visual feedback
+        const container = document.getElementById('agents-container');
+        if (container) {
+            container.classList.add('loading');
+        }
         
+        this.showAgentsLoading(true);
+
         try {
             const response = await this.makeRequest('GET', '/agents');
-            
+
             if (response && response.success) {
-                this.agents = response.data || [];
+                this.agents = response.data.agents || [];
                 this.displayAgents();
                 this.updateAgentsCount();
-                
-                // Show success status
-                if (this.agents.length > 0) {
-                    this.showConnectionStatus(true, `Loaded ${this.agents.length} agent${this.agents.length === 1 ? '' : 's'}`);
-                } else {
+
+                if (this.agents.length === 0) {
                     this.showNotification('No Acronis agents found', 'info', 3000, {
                         helpText: 'Make sure agents are properly configured and connected to your Acronis account'
                     });
                 }
             } else {
                 this.showAgentsEmptyState();
-                this.showConnectionStatus(false, 'No agent data available');
             }
         } catch (error) {
             this.handleError(error, 'load agents');
             this.showAgentsEmptyState();
-            this.showConnectionStatus(false, 'Failed to load agents');
         } finally {
             this.showAgentsLoading(false);
-            this.showLoadingState('agents', false);
+            if (container) {
+                container.classList.remove('loading');
+            }
+        }
+    }
+
+    /**
+     * Load workloads list
+     */
+    async loadWorkloads() {
+        try {
+            const response = await this.makeRequest('GET', '/workloads');
+
+            if (response && response.success) {
+                this.workloads = response.data.workloads || [];
+                this.updateWorkloadsCount();
+            } else {
+                this.workloads = [];
+                this.updateWorkloadsCount();
+            }
+        } catch (error) {
+            this.handleError(error, 'load workloads');
+            this.workloads = [];
+            this.updateWorkloadsCount();
+        }
+    }
+
+    /**
+     * Update workloads count display
+     */
+    updateWorkloadsCount() {
+        const totalWorkloads = document.getElementById('total-workloads');
+        if (totalWorkloads) {
+            totalWorkloads.textContent = this.workloads ? this.workloads.length : '--';
         }
     }
 
@@ -305,7 +341,7 @@ class AcronisManager {
      */
     async loadAgentDetails(agentId) {
         const agent = this.agents.find(a => a.id_agent === agentId);
-        
+
         if (agent) {
             this.displayAgentInfo(agent);
         } else {
@@ -327,16 +363,22 @@ class AcronisManager {
      */
     async loadAgentBackups(agentId) {
         this.showBackupsLoading(true);
-        
+
         try {
             const response = await this.makeRequest('GET', `/agent/${agentId}/backups`);
-            
+
+            console.log('Agent backups response:', response); // Debug log
+
             if (response && response.success) {
+                console.log('Backup data:', response.data); // Debug log
+                console.log('Number of backups:', response.data.backups ? response.data.backups.length : 0); // Debug log
                 this.displayAgentBackups(response.data);
             } else {
+                console.log('No success in response or no response'); // Debug log
                 this.showBackupsEmptyState();
             }
         } catch (error) {
+            console.error('Error loading agent backups:', error); // Debug log
             this.handleError(error, 'load agent backups');
             this.showBackupsEmptyState();
         } finally {
@@ -350,7 +392,7 @@ class AcronisManager {
     displayAgents() {
         const container = document.getElementById('agents-container');
         const template = document.getElementById('agent-card-template');
-        
+
         if (!container || !template) return;
 
         // Clear existing content
@@ -382,16 +424,16 @@ class AcronisManager {
     createAgentCard(agent, template) {
         const card = template.content.cloneNode(true);
         const cardElement = card.querySelector('.agent-card');
-        
+
         // Set agent ID
         cardElement.setAttribute('data-agent-id', agent.id_agent);
-        
+
         // Fill in agent data
         card.querySelector('.agent-hostname').textContent = agent.hostname || '--';
         card.querySelector('.agent-id').textContent = agent.id_agent || '--';
         card.querySelector('.agent-tenant').textContent = agent.id_tenant || '--';
         card.querySelector('.agent-uptime').textContent = agent.uptime || '--';
-        
+
         // Set platform info
         const platformElement = card.querySelector('.agent-platform');
         if (agent.platform && agent.platform.name) {
@@ -399,13 +441,13 @@ class AcronisManager {
         } else {
             platformElement.textContent = '--';
         }
-        
+
         // Set status
         const statusElement = card.querySelector('.agent-status');
         const status = agent.online ? 'online' : 'offline';
         statusElement.textContent = status;
         statusElement.className = `status-indicator ${this.getStatusClass(status)}`;
-        
+
         // Setup view details button
         const viewDetailsBtn = card.querySelector('.view-details-btn');
         if (viewDetailsBtn) {
@@ -414,20 +456,7 @@ class AcronisManager {
             });
         }
 
-        // Setup agent chart if charts module is available
-        if (window.acronisCharts) {
-            const chartContainer = card.querySelector('.agent-chart');
-            if (chartContainer) {
-                chartContainer.setAttribute('data-chart-id', `agent-${agent.id_agent}`);
-                window.acronisCharts.renderAgentChart(agent.id_agent, chartContainer);
-            }
-        } else {
-            // Show "No Backups" message if no chart module
-            const noBackupsMsg = card.querySelector('.no-backups-message');
-            if (noBackupsMsg) {
-                noBackupsMsg.style.display = 'block';
-            }
-        }
+        // Chart containers removed - agent cards now show only basic info
 
         return cardElement;
     }
@@ -442,7 +471,7 @@ class AcronisManager {
         document.getElementById('agent-id').textContent = agent.id_agent || '--';
         document.getElementById('agent-tenant').textContent = agent.id_tenant || '--';
         document.getElementById('agent-uptime').textContent = agent.uptime || '--';
-        
+
         // Set platform info
         const platformElement = document.getElementById('agent-platform');
         if (agent.platform && agent.platform.name) {
@@ -450,7 +479,7 @@ class AcronisManager {
         } else {
             platformElement.textContent = '--';
         }
-        
+
         // Set status
         const statusElement = document.getElementById('agent-status');
         const status = agent.online ? 'online' : 'offline';
@@ -465,14 +494,14 @@ class AcronisManager {
     displayAgentBackups(backupData) {
         const container = document.getElementById('backups-container');
         const template = document.getElementById('backup-item-template');
-        
+
         if (!container || !template) return;
 
         // Clear existing content
         container.innerHTML = '';
 
         const backups = backupData.backups || [];
-        
+
         if (backups.length === 0) {
             this.showBackupsEmptyState();
             return;
@@ -506,17 +535,17 @@ class AcronisManager {
     createBackupItem(backup, template, index) {
         const item = template.content.cloneNode(true);
         const itemElement = item.querySelector('.backup-item');
-        
+
         // Set backup ID
         itemElement.setAttribute('data-backup-id', `backup-${index}`);
-        
+
         // Fill in backup data
         item.querySelector('.backup-started').textContent = backup.started_at || '--';
         item.querySelector('.backup-completed').textContent = backup.completed_at || '--';
         item.querySelector('.backup-state').textContent = backup.state || '--';
         item.querySelector('.backup-result').textContent = backup.result || '--';
         item.querySelector('.backup-mode').textContent = backup.run_mode || '--';
-        
+
         // Format backup size
         const sizeElement = item.querySelector('.backup-size');
         if (backup.bytes_saved) {
@@ -524,7 +553,7 @@ class AcronisManager {
         } else {
             sizeElement.textContent = '--';
         }
-        
+
         // Calculate duration
         const durationElement = item.querySelector('.backup-duration');
         if (backup.started_at && backup.completed_at) {
@@ -533,39 +562,39 @@ class AcronisManager {
         } else {
             durationElement.textContent = '';
         }
-        
+
         // Set status classes
         const stateElement = item.querySelector('.backup-state');
         stateElement.className = `backup-state ${this.getBackupStateClass(backup.state)}`;
-        
+
         const resultElement = item.querySelector('.backup-result');
         resultElement.className = `backup-result ${this.getBackupResultClass(backup.result)}`;
-        
+
         // Setup expand/collapse for activities
         const expandBtn = item.querySelector('.expand-backup-btn');
         const activitiesSection = item.querySelector('.backup-activities');
-        
+
         if (expandBtn && activitiesSection) {
             // Update button title with activity count
             const activityCount = backup.activities ? backup.activities.length : 0;
-            expandBtn.title = activityCount > 0 ? 
-                `Show ${activityCount} activit${activityCount === 1 ? 'y' : 'ies'}` : 
+            expandBtn.title = activityCount > 0 ?
+                `Show ${activityCount} activit${activityCount === 1 ? 'y' : 'ies'}` :
                 'Show activities';
-            
+
             expandBtn.addEventListener('click', () => {
                 const isExpanded = activitiesSection.style.display !== 'none';
                 activitiesSection.style.display = isExpanded ? 'none' : 'block';
-                
+
                 const icon = expandBtn.querySelector('i');
                 if (icon) {
                     icon.className = isExpanded ? 'fas fa-chevron-down' : 'fas fa-chevron-up';
                 }
-                
+
                 // Update button title
-                expandBtn.title = isExpanded ? 
+                expandBtn.title = isExpanded ?
                     (activityCount > 0 ? `Show ${activityCount} activit${activityCount === 1 ? 'y' : 'ies'}` : 'Show activities') :
                     'Hide activities';
-                
+
                 // Load activities if not loaded yet
                 if (!isExpanded) {
                     this.displayBackupActivities(activitiesSection, backup.activities || []);
@@ -584,7 +613,7 @@ class AcronisManager {
     displayBackupActivities(container, activities) {
         const activitiesContainer = container.querySelector('.activities-container');
         const template = document.getElementById('activity-item-template');
-        
+
         if (!activitiesContainer || !template) return;
 
         // Clear existing content
@@ -606,11 +635,11 @@ class AcronisManager {
 
         activities.forEach(activity => {
             const item = template.content.cloneNode(true);
-            
+
             item.querySelector('.activity-name').textContent = activity.name || '--';
             item.querySelector('.activity-status').textContent = activity.status || '--';
             item.querySelector('.activity-time').textContent = activity.time || '--';
-            
+
             activitiesContainer.appendChild(item);
         });
     }
@@ -620,11 +649,11 @@ class AcronisManager {
      */
     updateStatisticsDisplay() {
         const stats = this.statistics;
-        
+
         document.getElementById('total-backups').textContent = stats.num_backups || '--';
         document.getElementById('successful-backups').textContent = stats.success || '--';
         document.getElementById('failed-backups').textContent = stats.failed || '--';
-        
+
         // Update agents count from current agents array
         document.getElementById('total-agents').textContent = this.agents.length || '--';
     }
@@ -656,11 +685,11 @@ class AcronisManager {
     showAgentsLoading(show) {
         const loading = document.getElementById('agents-loading');
         const container = document.getElementById('agents-container');
-        
+
         if (loading) {
             loading.style.display = show ? 'block' : 'none';
         }
-        
+
         if (container && show) {
             container.innerHTML = '';
         }
@@ -672,15 +701,15 @@ class AcronisManager {
     showAgentsEmptyState() {
         const emptyState = document.getElementById('agents-empty-state');
         const container = document.getElementById('agents-container');
-        
+
         if (emptyState) {
             emptyState.style.display = 'block';
         }
-        
+
         if (container) {
             container.innerHTML = '';
         }
-        
+
         this.updateAgentsCount();
     }
 
@@ -691,11 +720,11 @@ class AcronisManager {
     showBackupsLoading(show) {
         const loading = document.getElementById('backups-loading');
         const container = document.getElementById('backups-container');
-        
+
         if (loading) {
             loading.style.display = show ? 'block' : 'none';
         }
-        
+
         if (container && show) {
             container.innerHTML = '';
         }
@@ -707,15 +736,15 @@ class AcronisManager {
     showBackupsEmptyState() {
         const emptyState = document.getElementById('backups-empty-state');
         const container = document.getElementById('backups-container');
-        
+
         if (emptyState) {
             emptyState.style.display = 'block';
         }
-        
+
         if (container) {
             container.innerHTML = '';
         }
-        
+
         // Update count
         const countBadge = document.getElementById('backups-count-badge');
         if (countBadge) {
@@ -728,20 +757,20 @@ class AcronisManager {
      */
     async refreshData() {
         this.showRefreshIndicator(true);
-        
+
         const refreshId = this.showNotification('Refreshing Acronis data...', 'info', 0, {
             showSpinner: true,
             id: 'acronis-refresh'
         });
-        
+
         try {
             await this.loadInitialData();
-            
+
             // Remove loading notification
             if (window.notificationSystem && window.notificationSystem.remove) {
                 window.notificationSystem.remove('acronis-refresh');
             }
-            
+
             this.showNotification('Acronis data refreshed successfully', 'success', 3000, {
                 helpText: 'All backup statistics and agent information have been updated'
             });
@@ -750,7 +779,7 @@ class AcronisManager {
             if (window.notificationSystem && window.notificationSystem.remove) {
                 window.notificationSystem.remove('acronis-refresh');
             }
-            
+
             this.handleError(error, 'refresh data');
         } finally {
             this.showRefreshIndicator(false);
@@ -762,9 +791,9 @@ class AcronisManager {
      */
     async refreshAgentDetails() {
         if (!this.currentAgentId) return;
-        
+
         this.showRefreshIndicator(true);
-        
+
         try {
             await Promise.all([
                 this.loadAgentDetails(this.currentAgentId),
@@ -794,30 +823,36 @@ class AcronisManager {
      */
     startAutoRefresh() {
         this.stopAutoRefresh(); // Ensure clean state
-        
+
         // Reset backoff if we're starting fresh
         if (this.consecutiveErrors === 0) {
             this.refreshBackoffMultiplier = 1;
         }
-        
+
         const effectiveRefreshRate = this.refreshRate * this.refreshBackoffMultiplier;
-        
+
         this.refreshInterval = setInterval(() => {
             if (!this.isActive || document.hidden) {
                 return; // Skip refresh if tab is not active or page is hidden
             }
-            
+
             if (this.currentView === 'dashboard') {
                 this.performAutoRefresh();
             } else if (this.currentView === 'details' && this.currentAgentId) {
                 this.performAutoRefreshDetails();
             }
         }, effectiveRefreshRate);
-        
+
         console.log(`Auto-refresh started with ${effectiveRefreshRate}ms interval (backoff: ${this.refreshBackoffMultiplier}x)`);
-        
+
         // Update UI to reflect auto-refresh state
         this.updateAutoRefreshUI(true);
+        
+        // Add visual indicator
+        const refreshIndicator = document.getElementById('refresh-acronis-indicator');
+        if (refreshIndicator) {
+            refreshIndicator.classList.add('active');
+        }
     }
 
     /**
@@ -828,15 +863,21 @@ class AcronisManager {
             clearInterval(this.refreshInterval);
             this.refreshInterval = null;
         }
-        
+
         // Clear any pending refresh timeouts
         this.refreshTimeouts.forEach(timeout => clearTimeout(timeout));
         this.refreshTimeouts.clear();
-        
+
         console.log('Auto-refresh stopped');
-        
+
         // Update UI to reflect auto-refresh state
         this.updateAutoRefreshUI(false);
+        
+        // Remove visual indicator
+        const refreshIndicator = document.getElementById('refresh-acronis-indicator');
+        if (refreshIndicator) {
+            refreshIndicator.classList.remove('active');
+        }
     }
 
     /**
@@ -849,9 +890,9 @@ class AcronisManager {
             if (this.lastRefreshTime && (now - this.lastRefreshTime) < (this.refreshRate * 0.8)) {
                 return; // Skip if refreshed too recently
             }
-            
+
             this.lastRefreshTime = now;
-            
+
             // Perform refresh with timeout
             const refreshPromise = this.loadInitialData();
             const timeoutPromise = new Promise((_, reject) => {
@@ -860,19 +901,19 @@ class AcronisManager {
                 }, 30000); // 30 second timeout
                 this.refreshTimeouts.add(timeout);
             });
-            
+
             await Promise.race([refreshPromise, timeoutPromise]);
-            
+
             // Reset error tracking on success
             this.consecutiveErrors = 0;
             this.refreshBackoffMultiplier = 1;
             this.performanceMetrics.lastSuccessfulRefresh = now;
-            
+
             // Restart with normal interval if backoff was applied
             if (this.refreshBackoffMultiplier > 1) {
                 this.startAutoRefresh();
             }
-            
+
         } catch (error) {
             this.handleAutoRefreshError(error);
         }
@@ -887,9 +928,9 @@ class AcronisManager {
             if (this.lastRefreshTime && (now - this.lastRefreshTime) < (this.refreshRate * 0.8)) {
                 return;
             }
-            
+
             this.lastRefreshTime = now;
-            
+
             await Promise.race([
                 this.refreshAgentDetails(),
                 new Promise((_, reject) => {
@@ -899,11 +940,11 @@ class AcronisManager {
                     this.refreshTimeouts.add(timeout);
                 })
             ]);
-            
+
             this.consecutiveErrors = 0;
             this.refreshBackoffMultiplier = 1;
             this.performanceMetrics.lastSuccessfulRefresh = now;
-            
+
         } catch (error) {
             this.handleAutoRefreshError(error);
         }
@@ -916,19 +957,19 @@ class AcronisManager {
     handleAutoRefreshError(error) {
         this.consecutiveErrors++;
         this.performanceMetrics.errorCount++;
-        
+
         console.warn(`Auto-refresh error (${this.consecutiveErrors}/${this.maxConsecutiveErrors}):`, error.message);
-        
+
         // Apply exponential backoff
         if (this.consecutiveErrors >= this.maxConsecutiveErrors) {
             this.refreshBackoffMultiplier = Math.min(
                 this.refreshBackoffMultiplier * 2,
                 this.maxBackoffMultiplier
             );
-            
+
             // Restart with backoff
             this.startAutoRefresh();
-            
+
             // Show user notification for persistent errors
             if (this.refreshBackoffMultiplier >= 4) {
                 this.showNotification(
@@ -941,7 +982,7 @@ class AcronisManager {
                 );
             }
         }
-        
+
         // Stop auto-refresh if too many consecutive errors
         if (this.consecutiveErrors >= this.maxConsecutiveErrors * 2) {
             this.stopAutoRefresh();
@@ -973,12 +1014,12 @@ class AcronisManager {
         if (toggle && toggle.checked !== isActive) {
             toggle.checked = isActive;
         }
-        
+
         // Update status indicator if it exists
         const statusIndicator = document.getElementById('auto-refresh-status');
         if (statusIndicator) {
-            statusIndicator.textContent = isActive ? 
-                `Active (${this.refreshRate / 1000}s)` : 
+            statusIndicator.textContent = isActive ?
+                `Active (${this.refreshRate / 1000}s)` :
                 'Inactive';
             statusIndicator.className = `status-indicator ${isActive ? 'status-online' : 'status-offline'}`;
         }
@@ -990,35 +1031,47 @@ class AcronisManager {
      */
     onTabActivated(previousTab = null) {
         this.isActive = true;
-        
+
         console.log(`Acronis tab activated (from: ${previousTab || 'unknown'})`);
-        
+
+        // If we're switching from acronis to acronis (view change), don't reload data
+        if (previousTab === 'acronis') {
+            console.log('Internal view change detected, skipping data reload');
+            // Still start auto-refresh if needed
+            const autoRefreshToggle = document.getElementById('auto-refresh-acronis-toggle');
+            if (autoRefreshToggle && autoRefreshToggle.checked) {
+                this.startAutoRefresh();
+            }
+            return;
+        }
+
         // Cancel any pending requests from other tabs
         this.cancelPendingRequests();
-        
+
         // Start auto-refresh if enabled
         const autoRefreshToggle = document.getElementById('auto-refresh-acronis-toggle');
         if (autoRefreshToggle && autoRefreshToggle.checked) {
             this.startAutoRefresh();
         }
-        
+
         // Load data based on current view and staleness
         const shouldRefreshData = this.shouldRefreshOnActivation();
-        
+
         if (this.currentView === 'dashboard') {
             if (this.agents.length === 0 || shouldRefreshData) {
-                this.loadInitialData();
+                // Load data silently when tab is activated
+                this.loadInitialData(true);
             }
         } else if (this.currentView === 'details' && this.currentAgentId) {
             if (shouldRefreshData) {
                 this.refreshAgentDetails();
             }
         }
-        
+
         // Update performance metrics
         this.performanceMetrics.requestCount = 0;
         this.performanceMetrics.errorCount = 0;
-        
+
         // Show connection status
         this.updateConnectionStatus();
     }
@@ -1029,28 +1082,28 @@ class AcronisManager {
      */
     onTabDeactivated(newTab = null) {
         this.isActive = false;
-        
+
         console.log(`Acronis tab deactivated (to: ${newTab || 'unknown'})`);
-        
+
         // Stop all refresh operations
         this.stopAutoRefresh();
-        
+
         // Cancel pending requests to free up resources
         this.cancelPendingRequests();
-        
+
         // Clear any retry timeouts
         if (this.retryTimeout) {
             clearTimeout(this.retryTimeout);
             this.retryTimeout = null;
         }
-        
+
         // Clear all refresh timeouts
         this.refreshTimeouts.forEach(timeout => clearTimeout(timeout));
         this.refreshTimeouts.clear();
-        
+
         // Hide any loading indicators
         this.hideAllLoadingIndicators();
-        
+
         // Log performance metrics
         this.logPerformanceMetrics();
     }
@@ -1064,7 +1117,7 @@ class AcronisManager {
         if (!this.performanceMetrics.lastSuccessfulRefresh) {
             return true;
         }
-        
+
         // Refresh if data is older than refresh interval
         const dataAge = Date.now() - this.performanceMetrics.lastSuccessfulRefresh;
         return dataAge > this.refreshRate;
@@ -1095,7 +1148,7 @@ class AcronisManager {
         this.showAgentsLoading(false);
         this.showBackupsLoading(false);
         this.showRefreshIndicator(false);
-        
+
         // Remove any loading notifications
         if (window.notificationSystem && window.notificationSystem.remove) {
             ['acronis-loading-agents', 'acronis-loading-backup-statistics', 'acronis-refresh'].forEach(id => {
@@ -1122,7 +1175,7 @@ class AcronisManager {
                 errors: this.performanceMetrics.errorCount,
                 errorRate: `${((this.performanceMetrics.errorCount / this.performanceMetrics.requestCount) * 100).toFixed(1)}%`,
                 avgResponseTime: `${this.performanceMetrics.averageResponseTime}ms`,
-                lastSuccess: this.performanceMetrics.lastSuccessfulRefresh ? 
+                lastSuccess: this.performanceMetrics.lastSuccessfulRefresh ?
                     new Date(this.performanceMetrics.lastSuccessfulRefresh).toLocaleTimeString() : 'Never',
                 consecutiveErrors: this.consecutiveErrors,
                 backoffMultiplier: this.refreshBackoffMultiplier
@@ -1137,7 +1190,7 @@ class AcronisManager {
         console.log('App paused - stopping Acronis operations');
         this.stopAutoRefresh();
         this.cancelPendingRequests();
-        
+
         // Clear any retry timeouts
         if (this.retryTimeout) {
             clearTimeout(this.retryTimeout);
@@ -1150,7 +1203,7 @@ class AcronisManager {
      */
     onAppResumed() {
         console.log('App resumed - checking Acronis state');
-        
+
         if (this.isActive) {
             const autoRefreshToggle = document.getElementById('auto-refresh-acronis-toggle');
             if (autoRefreshToggle && autoRefreshToggle.checked) {
@@ -1158,11 +1211,12 @@ class AcronisManager {
                 this.consecutiveErrors = 0;
                 this.refreshBackoffMultiplier = 1;
                 this.startAutoRefresh();
-                
+
                 // Refresh data if it's stale
                 if (this.shouldRefreshOnActivation()) {
                     if (this.currentView === 'dashboard') {
-                        this.loadInitialData();
+                        // Load silently when page becomes visible
+                        this.loadInitialData(true);
                     } else if (this.currentView === 'details' && this.currentAgentId) {
                         this.refreshAgentDetails();
                     }
@@ -1185,7 +1239,7 @@ class AcronisManager {
      */
     onPageVisible() {
         console.log('Page visible - resuming Acronis operations');
-        
+
         if (this.isActive) {
             const autoRefreshToggle = document.getElementById('auto-refresh-acronis-toggle');
             if (autoRefreshToggle && autoRefreshToggle.checked) {
@@ -1199,18 +1253,18 @@ class AcronisManager {
      */
     onNetworkOnline() {
         console.log('Network online - resuming Acronis operations');
-        
+
         if (this.isActive) {
             // Reset error tracking
             this.consecutiveErrors = 0;
             this.refreshBackoffMultiplier = 1;
-            
+
             // Restart auto-refresh if enabled
             const autoRefreshToggle = document.getElementById('auto-refresh-acronis-toggle');
             if (autoRefreshToggle && autoRefreshToggle.checked) {
                 this.startAutoRefresh();
             }
-            
+
             // Show reconnection notification
             this.showNotification('Network connection restored', 'success', 3000);
         }
@@ -1221,10 +1275,10 @@ class AcronisManager {
      */
     onNetworkOffline() {
         console.log('Network offline - stopping Acronis operations');
-        
+
         this.stopAutoRefresh();
         this.cancelPendingRequests();
-        
+
         // Show offline notification
         this.showNotification('Network connection lost. Auto-refresh paused.', 'warning', 0, {
             persistent: true,
@@ -1237,31 +1291,31 @@ class AcronisManager {
      */
     cleanup() {
         console.log('Cleaning up Acronis resources');
-        
+
         // Stop all operations
         this.stopAutoRefresh();
         this.cancelPendingRequests();
-        
+
         // Clear all timeouts
         if (this.retryTimeout) {
             clearTimeout(this.retryTimeout);
             this.retryTimeout = null;
         }
-        
+
         this.refreshTimeouts.forEach(timeout => clearTimeout(timeout));
         this.refreshTimeouts.clear();
-        
+
         // Clear data to free memory
         this.agents = [];
         this.statistics = {};
-        
+
         // Reset state
         this.isActive = false;
         this.currentAgentId = null;
         this.consecutiveErrors = 0;
         this.refreshBackoffMultiplier = 1;
         this.lastRefreshTime = null;
-        
+
         // Clear performance metrics
         this.performanceMetrics = {
             requestCount: 0,
@@ -1281,11 +1335,11 @@ class AcronisManager {
     async makeRequest(method, endpoint, data = null) {
         const url = `${this.baseUrl}${endpoint}`;
         const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
+
         // Create abort controller for this request
         const controller = new AbortController();
         this.activeRequests.set(requestId, controller);
-        
+
         const options = {
             method: method,
             headers: {
@@ -1311,17 +1365,17 @@ class AcronisManager {
         let response;
         let result;
         const startTime = Date.now();
-        
+
         // Update performance metrics
         this.performanceMetrics.requestCount++;
 
         try {
             response = await fetch(url, options);
             const duration = Date.now() - startTime;
-            
+
             // Update performance metrics
             this.updatePerformanceMetrics(duration, true);
-            
+
             // Log response timing
             console.debug(`Response received for ${method} ${endpoint}`, {
                 requestId,
@@ -1330,9 +1384,9 @@ class AcronisManager {
                 ok: response.ok,
                 remainingRequests: this.activeRequests.size - 1
             });
-            
+
             const contentType = response.headers.get('content-type');
-            
+
             if (contentType && contentType.includes('application/json')) {
                 try {
                     result = await response.json();
@@ -1343,7 +1397,7 @@ class AcronisManager {
             } else {
                 const textResponse = await response.text();
                 result = { message: textResponse };
-                
+
                 if (!response.ok) {
                     console.warn(`Non-JSON error response for ${method} ${endpoint}:`, textResponse);
                 }
@@ -1359,7 +1413,7 @@ class AcronisManager {
                 error.duration = duration;
                 error.url = url;
                 error.method = method;
-                
+
                 // Add network error context
                 if (response.status === 0) {
                     error.networkError = true;
@@ -1369,7 +1423,7 @@ class AcronisManager {
                 } else if (response.status >= 400) {
                     error.clientError = true;
                 }
-                
+
                 console.error(`Request failed: ${method} ${endpoint}`, {
                     requestId,
                     status: response.status,
@@ -1377,7 +1431,7 @@ class AcronisManager {
                     duration: `${duration}ms`,
                     response: result
                 });
-                
+
                 throw error;
             }
 
@@ -1393,15 +1447,15 @@ class AcronisManager {
 
         } catch (error) {
             const duration = Date.now() - startTime;
-            
+
             // Update performance metrics for errors
             this.updatePerformanceMetrics(duration, false);
-            
+
             // Handle different types of errors
             if (error.name === 'AbortError') {
                 // Check if this was a manual cancellation or timeout
                 const wasManualCancel = !this.activeRequests.has(requestId);
-                
+
                 if (wasManualCancel) {
                     console.debug(`Request cancelled: ${method} ${endpoint}`, { requestId });
                     const cancelError = new Error(`Request cancelled: ${method} ${endpoint}`);
@@ -1415,14 +1469,14 @@ class AcronisManager {
                     timeoutError.duration = duration;
                     timeoutError.url = url;
                     timeoutError.method = method;
-                    
+
                     console.error('Request timeout:', {
                         requestId,
                         method,
                         endpoint,
                         duration: `${duration}ms`
                     });
-                    
+
                     throw timeoutError;
                 }
             } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
@@ -1433,7 +1487,7 @@ class AcronisManager {
                 networkError.duration = duration;
                 networkError.url = url;
                 networkError.method = method;
-                
+
                 console.error('Network error:', {
                     requestId,
                     method,
@@ -1441,7 +1495,7 @@ class AcronisManager {
                     duration: `${duration}ms`,
                     originalError: error.message
                 });
-                
+
                 throw networkError;
             } else if (!error.status) {
                 // Enhance error with request context if not already present
@@ -1449,7 +1503,7 @@ class AcronisManager {
                 error.duration = duration;
                 error.url = url;
                 error.method = method;
-                
+
                 console.error(`Request error: ${method} ${endpoint}`, {
                     requestId,
                     duration: `${duration}ms`,
@@ -1457,7 +1511,7 @@ class AcronisManager {
                     type: error.name
                 });
             }
-            
+
             throw error;
         } finally {
             // Always clean up the request tracking
@@ -1474,13 +1528,13 @@ class AcronisManager {
         if (!success) {
             this.performanceMetrics.errorCount++;
         }
-        
+
         // Update average response time using exponential moving average
         if (this.performanceMetrics.averageResponseTime === 0) {
             this.performanceMetrics.averageResponseTime = duration;
         } else {
             const alpha = 0.1; // Smoothing factor
-            this.performanceMetrics.averageResponseTime = 
+            this.performanceMetrics.averageResponseTime =
                 (alpha * duration) + ((1 - alpha) * this.performanceMetrics.averageResponseTime);
         }
     }
@@ -1739,7 +1793,7 @@ class AcronisManager {
         // Stop auto-refresh on persistent errors
         if (['ACRONIS_NOT_CONFIGURED', 'ACRONIS_AUTH_ERROR', 'ACRONIS_CIRCUIT_BREAKER_OPEN'].includes(errorCode)) {
             this.stopAutoRefresh();
-            
+
             // Update auto-refresh toggle
             const autoRefreshToggle = document.getElementById('auto-refresh-acronis-toggle');
             if (autoRefreshToggle) {
@@ -1782,7 +1836,7 @@ class AcronisManager {
      */
     showRetryCountdown(operation, seconds) {
         let remainingSeconds = seconds;
-        
+
         const countdownId = this.showNotification(
             `Retrying ${operation} in ${remainingSeconds} seconds...`,
             'info',
@@ -1795,16 +1849,16 @@ class AcronisManager {
 
         const countdownInterval = setInterval(() => {
             remainingSeconds--;
-            
+
             if (remainingSeconds > 0) {
                 // Update notification text if system supports it
                 if (window.notificationSystem && window.notificationSystem.update) {
-                    window.notificationSystem.update('acronis-retry-countdown', 
+                    window.notificationSystem.update('acronis-retry-countdown',
                         `Retrying ${operation} in ${remainingSeconds} seconds...`);
                 }
             } else {
                 clearInterval(countdownInterval);
-                
+
                 // Remove countdown notification
                 if (window.notificationSystem && window.notificationSystem.remove) {
                     window.notificationSystem.remove('acronis-retry-countdown');
@@ -1888,10 +1942,10 @@ class AcronisManager {
                 case 'success':
                     return window.notificationSystem.showSuccess(message, { duration, ...notificationOptions });
                 case 'error':
-                    return window.notificationSystem.showError(message, { 
+                    return window.notificationSystem.showError(message, {
                         persistent: duration === 0,
                         duration: duration || 10000,
-                        ...notificationOptions 
+                        ...notificationOptions
                     });
                 case 'warning':
                     return window.notificationSystem.showWarning(message, { duration, ...notificationOptions });
@@ -1931,8 +1985,8 @@ class AcronisManager {
      * @param {string} message - Status message
      */
     showConnectionStatus(isConnected, message = null) {
-        const statusMessage = message || (isConnected ? 
-            'Connected to Acronis API' : 
+        const statusMessage = message || (isConnected ?
+            'Connected to Acronis API' :
             'Disconnected from Acronis API');
 
         const type = isConnected ? 'success' : 'warning';
@@ -1958,7 +2012,7 @@ class AcronisManager {
             'connected': 'status-online',
             'disconnected': 'status-offline'
         };
-        
+
         return statusClasses[status] || 'status-unknown';
     }
 
@@ -1974,7 +2028,7 @@ class AcronisManager {
             'failed': 'state-failed',
             'cancelled': 'state-cancelled'
         };
-        
+
         return stateClasses[state] || 'state-unknown';
     }
 
@@ -1991,7 +2045,7 @@ class AcronisManager {
             'error': 'result-error',
             'warning': 'result-warning'
         };
-        
+
         return resultClasses[result] || 'result-unknown';
     }
 
@@ -2027,11 +2081,11 @@ class AcronisManager {
         try {
             const start = new Date(startTime.replace(/(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2}):(\d{2})/, '$3-$2-$1T$4:$5:$6'));
             const end = new Date(endTime.replace(/(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2}):(\d{2})/, '$3-$2-$1T$4:$5:$6'));
-            
+
             const diffMs = end - start;
             const diffMins = Math.floor(diffMs / 60000);
             const diffHours = Math.floor(diffMins / 60);
-            
+
             if (diffHours > 0) {
                 return `${diffHours}h ${diffMins % 60}m`;
             } else {
@@ -2047,18 +2101,18 @@ class AcronisManager {
      */
     performMemoryCleanup() {
         console.log('Performing Acronis memory cleanup');
-        
+
         // Clear old performance metrics if they're getting too large
         if (this.performanceMetrics.requestCount > 1000) {
             this.performanceMetrics.requestCount = Math.floor(this.performanceMetrics.requestCount / 2);
             this.performanceMetrics.errorCount = Math.floor(this.performanceMetrics.errorCount / 2);
         }
-        
+
         // Clear old agent data if we have too many agents
         if (this.agents.length > 100) {
             console.warn('Large number of agents detected, consider pagination');
         }
-        
+
         // Force garbage collection if available (development only)
         if (window.gc && typeof window.gc === 'function') {
             try {
@@ -2095,7 +2149,7 @@ class AcronisManager {
         const agentsSize = JSON.stringify(this.agents).length;
         const statisticsSize = JSON.stringify(this.statistics).length;
         const totalSize = agentsSize + statisticsSize;
-        
+
         return {
             agents: `${Math.round(agentsSize / 1024)}KB`,
             statistics: `${Math.round(statisticsSize / 1024)}KB`,
@@ -2112,7 +2166,8 @@ let acronisManager;
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
         acronisManager = new AcronisManager();
-        
+        window.acronisManager = acronisManager; // Make it globally accessible
+
         // Set up periodic memory cleanup for long-running sessions
         setInterval(() => {
             if (acronisManager && acronisManager.isActive) {
@@ -2122,7 +2177,8 @@ if (document.readyState === 'loading') {
     });
 } else {
     acronisManager = new AcronisManager();
-    
+    window.acronisManager = acronisManager; // Make it globally accessible
+
     // Set up periodic memory cleanup for long-running sessions
     setInterval(() => {
         if (acronisManager && acronisManager.isActive) {

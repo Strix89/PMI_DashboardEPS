@@ -41,6 +41,9 @@
     <!-- Main stylesheet -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     
+    <!-- Acronis improvements -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/acronis-improvements.css') }}">
+    
     <!-- Preload critical resources for mobile -->
     <link rel="preload" href="{{ url_for('static', filename='js/theme.js') }}" as="script">
     <link rel="preload" href="{{ url_for('static', filename='js/main.js') }}" as="script">
@@ -137,6 +140,7 @@
     <script src="{{ url_for('static', filename='js/resources.js') }}?v=2024.1"></script>
     
     <!-- Acronis Backup Management -->
+    <script src="{{ url_for('static', filename='js/acronis-fixes.js') }}?v=2024.1"></script>
     <script src="{{ url_for('static', filename='js/acronis-config.js') }}?v=2024.1"></script>
     <script src="{{ url_for('static', filename='js/acronis-charts.js') }}?v=2024.1"></script>
     <script src="{{ url_for('static', filename='js/acronis.js') }}?v=2024.1"></script>
