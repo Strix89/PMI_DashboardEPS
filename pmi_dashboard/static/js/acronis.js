@@ -2041,7 +2041,6 @@ class AcronisManager {
             return '--';
         }
     }
-}
 
     /**
      * Perform memory cleanup for long-running sessions

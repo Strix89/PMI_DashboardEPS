@@ -73,8 +73,8 @@ class NotificationSystem {
             }, actualDuration);
         }
         
-        // Log error notifications for debugging
-        if (type === 'error') {
+        // Log error notifications for debugging (only in development)
+        if (type === 'error' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
             this.logError(message, options);
         }
         
@@ -195,7 +195,7 @@ class NotificationSystem {
                 <div class="notification-body">
                     <div class="notification-message">${this.escapeHtml(mainMessage)}</div>
                     ${additionalInfo ? `<div class="notification-additional">${this.escapeHtml(additionalInfo)}</div>` : ''}
-                    ${options.details ? `<div class="notification-details" style="display: none;">${this.escapeHtml(options.details)}</div>` : ''}
+                    ${options.details ? `<div class="notification-details-content" style="display: none;">${this.escapeHtml(options.details)}</div>` : ''}
                 </div>
                 <div class="notification-controls">
                     ${actionsHtml}
@@ -237,7 +237,9 @@ class NotificationSystem {
         // Details button
         const detailsBtn = notification.querySelector('.notification-details');
         if (detailsBtn) {
-            detailsBtn.addEventListener('click', () => {
+            detailsBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 this.toggleDetails(notification);
             });
         }
@@ -408,22 +410,27 @@ class NotificationSystem {
      * @param {HTMLElement} notification - Notification element
      */
     toggleDetails(notification) {
-        const details = notification.querySelector('.notification-details');
+        const detailsContent = notification.querySelector('.notification-details-content');
         const detailsBtn = notification.querySelector('.notification-details');
         
-        if (details) {
-            const isVisible = details.style.display !== 'none';
-            details.style.display = isVisible ? 'none' : 'block';
+        if (detailsContent) {
+            const isVisible = detailsContent.style.display !== 'none';
+            detailsContent.style.display = isVisible ? 'none' : 'block';
             
+            // Update button appearance
             if (detailsBtn) {
                 const icon = detailsBtn.querySelector('i');
                 const text = detailsBtn.querySelector('span');
-                if (isVisible) {
-                    icon.className = 'fas fa-info-circle';
-                    text.textContent = 'Details';
-                } else {
-                    icon.className = 'fas fa-eye-slash';
-                    text.textContent = 'Hide';
+                if (icon && text) {
+                    if (isVisible) {
+                        icon.className = 'fas fa-info-circle';
+                        text.textContent = 'Details';
+                        detailsBtn.setAttribute('aria-label', 'Show details');
+                    } else {
+                        icon.className = 'fas fa-eye-slash';
+                        text.textContent = 'Hide';
+                        detailsBtn.setAttribute('aria-label', 'Hide details');
+                    }
                 }
             }
         }
@@ -487,8 +494,10 @@ class NotificationSystem {
             this.errorQueue.shift();
         }
         
-        // Log to console for development
-        console.error('Notification Error:', errorEntry);
+        // Log to console for development (reduced verbosity)
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            console.warn('Notification Error:', errorEntry.message);
+        }
         
         // In production, you might want to send this to a logging service
         if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {

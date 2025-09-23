@@ -39,7 +39,7 @@ class AcronisConfigManager {
         }
 
         // Test connection button
-        const testConnectionBtn = document.getElementById('test-connection-btn');
+        const testConnectionBtn = document.getElementById('test-acronis-connection-btn');
         if (testConnectionBtn) {
             testConnectionBtn.addEventListener('click', () => this.testConnection());
         }
@@ -239,8 +239,15 @@ class AcronisConfigManager {
      * @returns {Object} Form data
      */
     getFormData() {
+        let baseUrl = document.getElementById('acronis-base-url').value.trim();
+        
+        // Ensure base URL ends with a forward slash
+        if (baseUrl && !baseUrl.endsWith('/')) {
+            baseUrl += '/';
+        }
+        
         return {
-            base_url: document.getElementById('acronis-base-url').value.trim(),
+            base_url: baseUrl,
             client_id: document.getElementById('acronis-client-id').value.trim(),
             client_secret: document.getElementById('acronis-client-secret').value.trim(),
             grant_type: document.getElementById('acronis-grant-type').value.trim()
@@ -321,9 +328,13 @@ class AcronisConfigManager {
                     isValid = false;
                     errorMessage = 'URL must use HTTP or HTTPS protocol';
                 }
+                // Auto-add trailing slash if missing (for better UX)
+                if (value && !value.endsWith('/')) {
+                    input.value = value + '/';
+                }
             } catch (e) {
                 isValid = false;
-                errorMessage = 'Please enter a valid URL';
+                errorMessage = 'Please enter a valid URL (e.g., https://your-server.com/api/)';
             }
         }
 
@@ -430,7 +441,7 @@ class AcronisConfigManager {
         }
 
         const formData = this.getFormData();
-        const testBtn = document.getElementById('test-connection-btn');
+        const testBtn = document.getElementById('test-acronis-connection-btn');
 
         try {
             this.setButtonLoading(testBtn, true);
@@ -456,7 +467,10 @@ class AcronisConfigManager {
             let errorMessage = error.message;
             let helpText = 'Please check your configuration and try again.';
 
-            if (error.message && error.message.includes('Authentication failed')) {
+            if (error.message && (error.message.includes('404') || error.message.includes('Not Found'))) {
+                errorMessage = 'API endpoint not found (404). The Base URL appears to be incorrect.';
+                helpText = 'Please verify the Base URL points to a valid Acronis API server (e.g., https://your-acronis-server.com/api/)';
+            } else if (error.message && error.message.includes('Authentication failed')) {
                 errorMessage = 'Authentication failed. Please check your Client ID and Client Secret.';
                 helpText = 'Verify that your API credentials are correct and have the necessary permissions.';
             } else if (error.message && error.message.includes('Connection failed')) {
@@ -617,7 +631,7 @@ class AcronisConfigManager {
             // Restore original icon
             const icon = button.querySelector('i');
             if (icon) {
-                if (button.id === 'test-connection-btn') {
+                if (button.id === 'test-acronis-connection-btn') {
                     icon.className = 'fas fa-plug';
                 } else if (button.id === 'save-config-btn') {
                     icon.className = 'fas fa-save';

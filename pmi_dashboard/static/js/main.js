@@ -214,7 +214,16 @@ class PMIDashboard {
      */
     handleResize() {
         // Add any resize-specific logic here
-        console.log('Window resized');
+        // Removed console.log to reduce noise
+        
+        // Update mobile detection
+        this.isMobile = this.detectMobile();
+        
+        // Trigger custom resize event for other components
+        const resizeEvent = new CustomEvent('dashboardResize', {
+            detail: { isMobile: this.isMobile }
+        });
+        document.dispatchEvent(resizeEvent);
     }
     
     /**

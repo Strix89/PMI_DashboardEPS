@@ -665,16 +665,7 @@ class NodeDashboard {
             });
         }
 
-        // Edit node button
-        const editBtn = card.querySelector('.edit-node-btn');
-        if (editBtn) {
-            editBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (window.nodeConfigManager) {
-                    window.nodeConfigManager.showEditNodeForm(nodeData);
-                }
-            });
-        }
+
 
         // Delete node button
         const deleteBtn = card.querySelector('.delete-node-btn');

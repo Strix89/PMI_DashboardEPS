@@ -1,4 +1,4 @@
-MESSAGGIO = "abc def gh"
+MESSAGGIO = ""
 
 def cifra_cesare_parole(messaggio):
     parole = messaggio.split()

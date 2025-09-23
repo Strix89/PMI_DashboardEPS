@@ -87,13 +87,23 @@ class ErrorHandler {
      * Setup performance monitoring
      */
     setupPerformanceMonitoring() {
-        // Monitor long tasks
+        // Monitor long tasks with throttling to reduce noise
         if ('PerformanceObserver' in window) {
             try {
+                let lastLogTime = 0;
+                const LOG_THROTTLE_MS = 5000; // Only log performance issues every 5 seconds
+                
                 const observer = new PerformanceObserver((list) => {
+                    const now = Date.now();
+                    if (now - lastLogTime < LOG_THROTTLE_MS) {
+                        return; // Throttle performance logging
+                    }
+                    
                     for (const entry of list.getEntries()) {
-                        if (entry.duration > 50) { // Tasks longer than 50ms
+                        if (entry.duration > 100) { // Only log tasks longer than 100ms (more significant)
                             this.logPerformanceIssue(entry);
+                            lastLogTime = now;
+                            break; // Only log one issue per throttle period
                         }
                     }
                 });
@@ -501,11 +511,21 @@ class ErrorHandler {
             timestamp: new Date().toISOString(),
             type: 'performance_issue',
             name: entry.name,
-            duration: entry.duration,
-            startTime: entry.startTime
+            duration: Math.round(entry.duration),
+            startTime: Math.round(entry.startTime)
         };
 
-        console.warn('Performance issue detected:', perfEntry);
+        // Only log to console in development mode and only for significant issues
+        if ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && 
+            perfEntry.duration > 200) { // Only log tasks longer than 200ms
+            console.warn('Performance issue detected:', perfEntry);
+        }
+        
+        // Add to error queue for tracking but don't spam console in production
+        this.errorQueue.push(perfEntry);
+        if (this.errorQueue.length > this.maxErrorQueue) {
+            this.errorQueue.shift();
+        }
     }
 
     /**
