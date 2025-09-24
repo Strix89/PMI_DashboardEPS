@@ -252,6 +252,16 @@ def create_app():
         """Main dashboard route."""
         return render_template('index.html')
     
+    @app.route('/health')
+    def health():
+        """Health monitoring route with embedded iframe."""
+        return render_template('health.html')
+    
+    @app.route('/anomaly')
+    def anomaly():
+        """Anomaly monitoring route with embedded iframe."""
+        return render_template('anomaly.html')
+    
     # Wrap with logging middleware
     app.wsgi_app = LoggingMiddleware(app.wsgi_app, api_logger, error_logger, security_logger)
     

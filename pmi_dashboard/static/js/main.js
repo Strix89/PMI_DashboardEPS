@@ -102,11 +102,8 @@ class PMIDashboard {
             return;
         }
         
-        // Handle development tabs
-        if (['health', 'anomaly'].includes(tabName)) {
-            this.showDevelopmentMessage(tabName);
-            return;
-        }
+        // Handle development tabs (none currently)
+        // All tabs are now functional with iframe integration
         
         this.setActiveTab(tabName);
         this.currentTab = tabName;

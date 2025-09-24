@@ -6,14 +6,16 @@
 <!-- Tab content panels -->
 <div class="tab-content">
     <!-- Health Tab Panel -->
-    <div id="health-panel" class="tab-panel" role="tabpanel" aria-labelledby="health-tab" hidden>
-        <div class="development-placeholder">
-            <div class="placeholder-content">
-                <i class="fas fa-heartbeat placeholder-icon"></i>
-                <h2>Health Monitoring</h2>
-                <p>This module is currently under development.</p>
-                <p class="text-muted">Health monitoring and system status features will be available in a future release.</p>
-            </div>
+    <div id="health-panel" class="tab-panel health-panel" role="tabpanel" aria-labelledby="health-tab" hidden>
+        <div class="iframe-container">
+            <iframe 
+                id="health-iframe"
+                src="http://localhost:5001" 
+                title="Metrics Dashboard - Health Monitoring"
+                frameborder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen>
+            </iframe>
         </div>
     </div>
     
@@ -28,14 +30,16 @@
     </div>
     
     <!-- Anomaly Tab Panel -->
-    <div id="anomaly-panel" class="tab-panel" role="tabpanel" aria-labelledby="anomaly-tab" hidden>
-        <div class="development-placeholder">
-            <div class="placeholder-content">
-                <i class="fas fa-exclamation-triangle placeholder-icon"></i>
-                <h2>Anomaly Detection</h2>
-                <p>This module is currently under development.</p>
-                <p class="text-muted">Anomaly detection and alerting features will be available in a future release.</p>
-            </div>
+    <div id="anomaly-panel" class="tab-panel anomaly-panel" role="tabpanel" aria-labelledby="anomaly-tab" hidden>
+        <div class="iframe-container">
+            <iframe 
+                id="anomaly-iframe"
+                src="http://localhost:5001/anomaly_snmp/configure" 
+                title="Anomaly Detection Dashboard"
+                frameborder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen>
+            </iframe>
         </div>
     </div>
 </div>
@@ -82,6 +86,38 @@
     color: var(--text-secondary);
     font-size: 1rem;
     margin: 0;
+}
+
+/* Iframe container styles */
+.iframe-container {
+    width: 100%;
+    max-width: none;
+    height: calc(100vh - 160px); /* Sottrae l'altezza dell'header e dei margini */
+    border: none;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 0;
+}
+
+.iframe-container iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: var(--bg-card);
+    border-radius: 8px;
+}
+
+/* Health panel specific styles */
+.health-panel {
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* Anomaly panel specific styles */
+.anomaly-panel {
+    padding: 0 !important;
+    margin: 0 !important;
 }
 
 /* Placeholder styles */
